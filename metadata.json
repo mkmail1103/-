@@ -1,0 +1,5 @@
+{
+  "name": "Kingshot Optimizer",
+  "description": "A strategy calculator for the 'Strongest Lord' event in Kingshot. Determines whether to use speed-ups now or wait based on building power increase.",
+  "requestFramePermissions": []
+}
