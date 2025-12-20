@@ -1,28 +1,58 @@
 import React, { useState, useMemo } from 'react';
-import { BuildingDefinition, CalculationResult } from '../types';
+import { CalculationResult } from '../types';
 import { BUILDINGS } from '../constants';
-import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp } from 'lucide-react';
+import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
+type Mode = 'building' | 'research' | 'troop';
+
 const Calculator: React.FC = () => {
+  const [mode, setMode] = useState<Mode>('building');
+
+  // Building State
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(BUILDINGS[0].id);
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
+  
+  // Manual Input State (Research/Troop)
+  const [manualPowerStr, setManualPowerStr] = useState<string>('');
+
+  // Time Input State
   const [days, setDays] = useState<string>('0');
   const [hours, setHours] = useState<string>('0');
   const [minutes, setMinutes] = useState<string>('0');
+
+  // --- Derived Values ---
 
   const selectedBuilding = useMemo(() => 
     BUILDINGS.find(b => b.id === selectedBuildingId) || BUILDINGS[0], 
   [selectedBuildingId]);
 
-  const levelData = useMemo(() => 
-    selectedBuilding.levels.find(l => l.level === selectedLevel),
-  [selectedBuilding, selectedLevel]);
+  // Determine Power Increase based on Mode
+  const powerIncrease = useMemo(() => {
+    if (mode === 'building') {
+      const levelData = selectedBuilding.levels.find(l => l.level === selectedLevel);
+      return levelData ? levelData.powerIncrease : 0;
+    } else {
+      // Research or Troop
+      return parseInt(manualPowerStr.replace(/,/g, '')) || 0;
+    }
+  }, [mode, selectedBuilding, selectedLevel, manualPowerStr]);
 
-  const powerIncrease = levelData ? levelData.powerIncrease : 0;
-  
-  // Logic from user: Threshold (min) = Increase / 10
-  const thresholdMinutes = powerIncrease / 10;
+  // Points Multipliers
+  // Building/Research: 1 Power = 30 Points
+  // Troop: 1 Power = 20 Points
+  const eventPointsPerPower = mode === 'troop' ? 20 : 30;
+  const speedupPointsPerMinute = 300;
+
+  // Threshold Calculation
+  // Cost (Speedup Points) = Minutes * 300
+  // Gain (Event Points) = Power * (20 or 30)
+  // Threshold (Minutes) happens when Cost = Gain
+  // Minutes * 300 = Power * EventMultiplier
+  // Minutes = Power * (EventMultiplier / 300)
+  const thresholdMinutes = useMemo(() => {
+    return powerIncrease * (eventPointsPerPower / speedupPointsPerMinute);
+  }, [powerIncrease, eventPointsPerPower]);
   
   const currentTotalMinutes = useMemo(() => {
     const d = parseInt(days) || 0;
@@ -31,12 +61,12 @@ const Calculator: React.FC = () => {
     return (d * 1440) + (h * 60) + m;
   }, [days, hours, minutes]);
 
-  // Points calculation
-  const pointsEvent1 = powerIncrease * 30;
-  const pointsEvent2 = currentTotalMinutes * 300;
+  // Points calculation for display
+  const pointsEvent1 = powerIncrease * eventPointsPerPower;
+  const pointsEvent2 = currentTotalMinutes * speedupPointsPerMinute;
 
   let result: CalculationResult = CalculationResult.EQUAL;
-  if (currentTotalMinutes === 0) {
+  if (currentTotalMinutes === 0 && powerIncrease === 0) {
     // No input
   } else if (currentTotalMinutes < thresholdMinutes) {
     result = CalculationResult.ACCELERATE_NOW;
@@ -46,7 +76,7 @@ const Calculator: React.FC = () => {
 
   const chartData = [
     {
-      name: '今加速 (建造P)',
+      name: '今加速 (イベントP)',
       points: pointsEvent1,
       fill: '#fbbf24', // amber-400
       stroke: '#f59e0b',
@@ -61,65 +91,133 @@ const Calculator: React.FC = () => {
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
 
+  // Mode Display Info
+  const modeInfo = {
+    building: { label: '建造', icon: Hammer, color: 'text-amber-400', bg: 'bg-amber-400/10' },
+    research: { label: '研究', icon: FlaskConical, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+    troop: { label: '兵士', icon: Swords, color: 'text-rose-400', bg: 'bg-rose-400/10' },
+  };
+
+  const CurrentIcon = modeInfo[mode].icon;
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       
       {/* Input Section */}
       <div className="relative group">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-blue-600 rounded-3xl opacity-30 group-hover:opacity-50 blur transition duration-500"></div>
+        <div className={`absolute -inset-0.5 bg-gradient-to-r rounded-3xl opacity-30 group-hover:opacity-50 blur transition duration-500
+          ${mode === 'building' ? 'from-amber-500 to-orange-600' : 
+            mode === 'research' ? 'from-purple-500 to-indigo-600' : 
+            'from-rose-500 to-red-600'}`}
+        ></div>
         <div className="relative bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 md:p-10 shadow-2xl">
+          
+          {/* Tabs */}
+          <div className="flex p-1 bg-slate-800/50 rounded-xl mb-8 border border-white/5">
+            {(Object.keys(modeInfo) as Mode[]).map((m) => {
+              const info = modeInfo[m];
+              const isActive = mode === m;
+              const Icon = info.icon;
+              return (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-300
+                    ${isActive 
+                      ? 'bg-slate-700 text-white shadow-lg ring-1 ring-white/10' 
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? info.color : ''}`} />
+                  {info.label}
+                </button>
+              );
+            })}
+          </div>
+
           <h2 className="text-2xl font-bold text-white flex items-center gap-3 mb-8">
-            <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
-              <CalcIcon className="w-6 h-6" />
+            <div className={`p-2 rounded-lg ${modeInfo[mode].bg} ${modeInfo[mode].color} transition-colors duration-300`}>
+              <CurrentIcon className="w-6 h-6" />
             </div>
-            建造データの入力
+            {mode === 'building' ? '建造データの入力' : 
+             mode === 'research' ? '研究データの入力' : 
+             '訓練データの入力'}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Building Select */}
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">施設の種類</label>
-              <div className="relative">
-                <select
-                  value={selectedBuildingId}
-                  onChange={(e) => {
-                    setSelectedBuildingId(e.target.value);
-                    setSelectedLevel(1); 
-                  }}
-                  className="w-full appearance-none bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl px-4 py-4 text-slate-100 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none shadow-inner text-base"
-                >
-                  {BUILDINGS.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ArrowRight className="w-4 h-4 rotate-90" />
+            
+            {/* Conditional Inputs */}
+            {mode === 'building' ? (
+              <>
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">施設の種類</label>
+                  <div className="relative">
+                    <select
+                      value={selectedBuildingId}
+                      onChange={(e) => {
+                        setSelectedBuildingId(e.target.value);
+                        setSelectedLevel(1); 
+                      }}
+                      className="w-full appearance-none bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl px-4 py-4 text-slate-100 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none shadow-inner text-base"
+                    >
+                      {BUILDINGS.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ArrowRight className="w-4 h-4 rotate-90" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Level Select */}
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">強化後のレベル (目標)</label>
-              <div className="relative">
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(parseInt(e.target.value))}
-                  className="w-full appearance-none bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl px-4 py-4 text-slate-100 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none shadow-inner text-base"
-                >
-                  {selectedBuilding.levels.map((l) => (
-                    <option key={l.level} value={l.level}>
-                      Lv. {l.level} (上昇値: {l.powerIncrease.toLocaleString()})
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                  <ArrowRight className="w-4 h-4 rotate-90" />
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">強化後のレベル (目標)</label>
+                  <div className="relative">
+                    <select
+                      value={selectedLevel}
+                      onChange={(e) => setSelectedLevel(parseInt(e.target.value))}
+                      className="w-full appearance-none bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl px-4 py-4 text-slate-100 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none shadow-inner text-base"
+                    >
+                      {selectedBuilding.levels.map((l) => (
+                        <option key={l.level} value={l.level}>
+                          Lv. {l.level} (上昇値: {l.powerIncrease.toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ArrowRight className="w-4 h-4 rotate-90" />
+                    </div>
+                  </div>
                 </div>
+              </>
+            ) : (
+              // Research & Troop Manual Input
+              <div className="md:col-span-2 space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">総力の上昇値</label>
+                  {mode === 'troop' && <span className="text-xs text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded">データ収集中のため手動入力</span>}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="例: 12000"
+                    value={manualPowerStr}
+                    onFocus={handleFocus}
+                    onChange={(e) => setManualPowerStr(e.target.value)}
+                    className="w-full bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl pl-4 pr-12 py-4 text-xl font-mono text-white focus:ring-2 focus:ring-amber-500 outline-none shadow-inner transition-colors"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 font-bold">
+                    UP
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {mode === 'research' ? '研究完了時に増加する戦力値を入力してください' : '訓練・昇格完了時に増加する戦力値を入力してください'}
+                </p>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Time Input */}
@@ -173,7 +271,7 @@ const Calculator: React.FC = () => {
               'bg-transparent'
             }`}></div>
 
-            {currentTotalMinutes > 0 ? (
+            {currentTotalMinutes > 0 || (powerIncrease > 0 && mode !== 'building') ? (
               <div className="relative z-10 space-y-6">
                 <div className="inline-block">
                   <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-6 bg-slate-800/50 px-4 py-1.5 rounded-full backdrop-blur">
@@ -189,7 +287,9 @@ const Calculator: React.FC = () => {
                     <div className="text-5xl md:text-6xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
                       <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-300 to-amber-500">今すぐ</span>加速
                     </div>
-                    <p className="text-amber-200/80 font-medium text-lg">建造ポイントデーの方が効率的です</p>
+                    <p className="text-amber-200/80 font-medium text-lg">
+                      {modeInfo[mode].label}ポイントデーの方が効率的です
+                    </p>
                   </div>
                 )}
                 
@@ -229,12 +329,12 @@ const Calculator: React.FC = () => {
           <div>
             <h3 className="text-white font-bold mb-6 flex items-center gap-2 text-lg">
               <TrendingUp className="w-5 h-5 text-amber-500" />
-              詳細データ
+              詳細データ ({modeInfo[mode].label})
             </h3>
             <div className="space-y-5">
               <div className="group">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-slate-400 text-sm">建造による上昇総力</span>
+                  <span className="text-slate-400 text-sm">上昇する総力</span>
                   <span className="text-lg font-bold text-white font-mono">{powerIncrease.toLocaleString()}</span>
                 </div>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
@@ -246,13 +346,15 @@ const Calculator: React.FC = () => {
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-slate-400 text-sm">お得ライン (境目)</span>
                   <span className="text-lg font-bold text-amber-400 font-mono">
-                    {thresholdMinutes.toLocaleString()} <span className="text-xs text-amber-400/50">分</span>
+                    {thresholdMinutes.toLocaleString(undefined, { maximumFractionDigits: 1 })} <span className="text-xs text-amber-400/50">分</span>
                   </span>
                 </div>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                   {/* Visual indicator of threshold relative to max typically needed, simplified here */}
                   <div className="bg-amber-500 h-full w-1/2 opacity-80"></div>
                 </div>
+                <p className="text-[10px] text-slate-500 mt-1 text-right">
+                  1総力 = {eventPointsPerPower}pt / 1分加速 = 300pt
+                </p>
               </div>
 
               <div className="group p-3 -mx-3 rounded-lg bg-white/5 border border-white/5">
@@ -314,32 +416,14 @@ const Calculator: React.FC = () => {
         <div className="space-y-1">
           <h4 className="font-bold text-blue-300">計算ロジックについて</h4>
           <p>
-            境目となる時間（分） = 上昇する総力 ÷ 10 <br/>
-            残り時間がこの境目より<strong>短い</strong>場合、建造ポイントデー（今）に加速するのがお得です。
-            逆に長い場合は、加速消費デーに回したほうが獲得ポイントが多くなります。
+            境目となる時間（分） = 上昇する総力 × (イベント倍率 ÷ 300) <br/>
+            建造・研究は倍率30（÷10）、兵士は倍率20（÷15）で計算されます。<br/>
+            残り時間がこの境目より<strong>短い</strong>場合、イベントP（今）の方がお得です。
           </p>
         </div>
       </div>
     </div>
   );
 };
-
-// Additional Icon for the info box
-const Info = ({ className }: { className?: string }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 16v-4" />
-    <path d="M12 8h.01" />
-  </svg>
-);
 
 export default Calculator;

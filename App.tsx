@@ -39,8 +39,8 @@ const App: React.FC = () => {
             加速アイテム
           </h2>
           <p className="text-lg text-slate-400 leading-relaxed max-w-2xl mx-auto">
-            「建造で総力上昇」の日と「加速を消費」の日。<br className="hidden md:block"/>
-            どちらで使うのが効率的か、瞬時に最適解を導き出します。
+            「総力上昇イベント」の日と「加速消費」の日。<br className="hidden md:block"/>
+            建造・研究・訓練、それぞれの効率を瞬時に計算します。
           </p>
         </div>
 
@@ -50,7 +50,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-20">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.11</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.12</p>
         </div>
       </footer>
     </div>
