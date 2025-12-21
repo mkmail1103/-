@@ -5,6 +5,20 @@ const createLevels = (data: number[]): { level: number; powerIncrease: number }[
   return data.map((val, idx) => ({ level: idx + 1, powerIncrease: val }));
 };
 
+// Troop Data (Level 1-10)
+export const TROOP_DATA = [
+  { level: 1, name: '見習い', power: 3 },
+  { level: 2, name: '一般', power: 4 },
+  { level: 3, name: '優秀', power: 6 },
+  { level: 4, name: '熟練', power: 9 },
+  { level: 5, name: '豪胆', power: 13 },
+  { level: 6, name: '勇猛', power: 20 },
+  { level: 7, name: '不屈', power: 28 },
+  { level: 8, name: '精鋭', power: 38 },
+  { level: 9, name: '名誉', power: 50 },
+  { level: 10, name: 'エース', power: 66 },
+];
+
 // Data extracted from PDF/OCR
 // Page 1: City Hall, Embassy/Institute/Warehouse, Barracks
 const cityHallData = [

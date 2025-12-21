@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { CalculationResult } from '../types';
-import { BUILDINGS } from '../constants';
-import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info } from 'lucide-react';
+import { BUILDINGS, TROOP_DATA } from '../constants';
+import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info, Users, ChevronsUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 type Mode = 'building' | 'research' | 'troop';
+type TroopSubMode = 'train' | 'promote';
 
 const Calculator: React.FC = () => {
   const [mode, setMode] = useState<Mode>('building');
@@ -13,8 +14,14 @@ const Calculator: React.FC = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(BUILDINGS[0].id);
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
   
-  // Manual Input State (Research/Troop)
+  // Research State (Manual)
   const [manualPowerStr, setManualPowerStr] = useState<string>('');
+
+  // Troop State
+  const [troopSubMode, setTroopSubMode] = useState<TroopSubMode>('train');
+  const [troopTargetLevel, setTroopTargetLevel] = useState<number>(10);
+  const [troopSourceLevel, setTroopSourceLevel] = useState<number>(9);
+  const [troopCount, setTroopCount] = useState<string>('');
 
   // Time Input State
   const [days, setDays] = useState<string>('0');
@@ -32,11 +39,27 @@ const Calculator: React.FC = () => {
     if (mode === 'building') {
       const levelData = selectedBuilding.levels.find(l => l.level === selectedLevel);
       return levelData ? levelData.powerIncrease : 0;
-    } else {
-      // Research or Troop
+    } 
+    else if (mode === 'research') {
       return parseInt(manualPowerStr.replace(/,/g, '')) || 0;
     }
-  }, [mode, selectedBuilding, selectedLevel, manualPowerStr]);
+    else if (mode === 'troop') {
+      const count = parseInt(troopCount.replace(/,/g, '')) || 0;
+      const target = TROOP_DATA.find(t => t.level === troopTargetLevel)?.power || 0;
+      
+      if (troopSubMode === 'train') {
+        // Training: Full power of the unit * count
+        return target * count;
+      } else {
+        // Promotion: (Target Power - Source Power) * count
+        const source = TROOP_DATA.find(t => t.level === troopSourceLevel)?.power || 0;
+        // Ensure positive gain
+        const diff = Math.max(0, target - source);
+        return diff * count;
+      }
+    }
+    return 0;
+  }, [mode, selectedBuilding, selectedLevel, manualPowerStr, troopSubMode, troopTargetLevel, troopSourceLevel, troopCount]);
 
   // Points Multipliers
   // Building/Research: 1 Power = 30 Points
@@ -45,11 +68,6 @@ const Calculator: React.FC = () => {
   const speedupPointsPerMinute = 300;
 
   // Threshold Calculation
-  // Cost (Speedup Points) = Minutes * 300
-  // Gain (Event Points) = Power * (20 or 30)
-  // Threshold (Minutes) happens when Cost = Gain
-  // Minutes * 300 = Power * EventMultiplier
-  // Minutes = Power * (EventMultiplier / 300)
   const thresholdMinutes = useMemo(() => {
     return powerIncrease * (eventPointsPerPower / speedupPointsPerMinute);
   }, [powerIncrease, eventPointsPerPower]);
@@ -113,7 +131,7 @@ const Calculator: React.FC = () => {
         <div className="relative bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 md:p-10 shadow-2xl">
           
           {/* Tabs */}
-          <div className="flex p-1 bg-slate-800/50 rounded-xl mb-8 border border-white/5">
+          <div className="flex p-1 bg-slate-800/50 rounded-xl mb-8 border border-white/5 overflow-x-auto">
             {(Object.keys(modeInfo) as Mode[]).map((m) => {
               const info = modeInfo[m];
               const isActive = mode === m;
@@ -122,7 +140,7 @@ const Calculator: React.FC = () => {
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-300
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-bold transition-all duration-300 whitespace-nowrap
                     ${isActive 
                       ? 'bg-slate-700 text-white shadow-lg ring-1 ring-white/10' 
                       : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
@@ -139,15 +157,15 @@ const Calculator: React.FC = () => {
             <div className={`p-2 rounded-lg ${modeInfo[mode].bg} ${modeInfo[mode].color} transition-colors duration-300`}>
               <CurrentIcon className="w-6 h-6" />
             </div>
-            {mode === 'building' ? '建造データの入力' : 
-             mode === 'research' ? '研究データの入力' : 
-             '訓練データの入力'}
+            {mode === 'building' && '建造データの入力'}
+            {mode === 'research' && '研究データの入力'}
+            {mode === 'troop' && '訓練・昇格データの入力'}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
-            {/* Conditional Inputs */}
-            {mode === 'building' ? (
+            {/* --- BUILDING MODE --- */}
+            {mode === 'building' && (
               <>
                 <div className="space-y-3">
                   <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">施設の種類</label>
@@ -192,12 +210,14 @@ const Calculator: React.FC = () => {
                   </div>
                 </div>
               </>
-            ) : (
-              // Research & Troop Manual Input
+            )}
+
+            {/* --- RESEARCH MODE (Manual) --- */}
+            {mode === 'research' && (
               <div className="md:col-span-2 space-y-3">
                 <div className="flex justify-between items-baseline">
                   <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">総力の上昇値</label>
-                  {mode === 'troop' && <span className="text-xs text-rose-400 bg-rose-400/10 px-2 py-0.5 rounded">データ収集中のため手動入力</span>}
+                  <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded">手動入力モード</span>
                 </div>
                 <div className="relative">
                   <input
@@ -214,8 +234,107 @@ const Calculator: React.FC = () => {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500">
-                  {mode === 'research' ? '研究完了時に増加する戦力値を入力してください' : '訓練・昇格完了時に増加する戦力値を入力してください'}
+                  研究完了時に増加する戦力値を入力してください
                 </p>
+              </div>
+            )}
+
+            {/* --- TROOP MODE (Training/Promotion) --- */}
+            {mode === 'troop' && (
+              <div className="md:col-span-2 space-y-6">
+                
+                {/* Troop Sub-Mode Toggle */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setTroopSubMode('train')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
+                      troopSubMode === 'train' 
+                        ? 'border-rose-500 bg-rose-500/10 text-rose-100' 
+                        : 'border-slate-700 bg-[#1E293B] text-slate-500 hover:border-slate-600'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    訓練 (新規作成)
+                  </button>
+                  <button
+                    onClick={() => setTroopSubMode('promote')}
+                    className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
+                      troopSubMode === 'promote' 
+                        ? 'border-rose-500 bg-rose-500/10 text-rose-100' 
+                        : 'border-slate-700 bg-[#1E293B] text-slate-500 hover:border-slate-600'
+                    }`}
+                  >
+                    <ChevronsUp className="w-4 h-4" />
+                    昇格 (レベルアップ)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-slate-800/30 rounded-xl border border-white/5">
+                  
+                  {troopSubMode === 'promote' && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-400">元のレベル (昇格前)</label>
+                      <select
+                        value={troopSourceLevel}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setTroopSourceLevel(val);
+                          // Ensure target is always higher
+                          if (val >= troopTargetLevel) setTroopTargetLevel(Math.min(10, val + 1));
+                        }}
+                        className="w-full bg-[#1E293B] border border-slate-700 rounded-lg px-3 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                      >
+                        {TROOP_DATA.slice(0, 9).map((t) => (
+                          <option key={t.level} value={t.level}>Lv.{t.level} {t.name} (総力: {t.power})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={`space-y-2 ${troopSubMode === 'train' ? 'md:col-span-2' : ''}`}>
+                    <label className="text-xs font-semibold text-slate-400">
+                      {troopSubMode === 'train' ? '訓練する兵士のレベル' : '目標レベル (昇格後)'}
+                    </label>
+                    <select
+                      value={troopTargetLevel}
+                      onChange={(e) => setTroopTargetLevel(parseInt(e.target.value))}
+                      className="w-full bg-[#1E293B] border border-slate-700 rounded-lg px-3 py-3 text-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                    >
+                      {TROOP_DATA.filter(t => troopSubMode === 'train' || t.level > troopSourceLevel).map((t) => (
+                        <option key={t.level} value={t.level}>Lv.{t.level} {t.name} (総力: {t.power})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="text-xs font-semibold text-slate-400">
+                      {troopSubMode === 'train' ? '訓練人数' : '昇格させる人数'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="例: 1000"
+                        value={troopCount}
+                        onFocus={handleFocus}
+                        onChange={(e) => setTroopCount(e.target.value)}
+                        className="w-full bg-[#1E293B] border border-slate-700 rounded-lg pl-4 pr-12 py-3 font-mono text-lg text-white focus:ring-2 focus:ring-rose-500 outline-none"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">人</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calculation Preview */}
+                <div className="text-center text-sm text-slate-400">
+                  {troopSubMode === 'train' ? (
+                     <span>総力 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} × {parseInt(troopCount || '0').toLocaleString()}人</span>
+                  ) : (
+                    <span>(目標 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} - 元 {TROOP_DATA.find(t => t.level === troopSourceLevel)?.power}) × {parseInt(troopCount || '0').toLocaleString()}人</span>
+                  )}
+                  <span className="mx-2">=</span>
+                  <span className="text-rose-400 font-bold text-lg">+{powerIncrease.toLocaleString()} 総力UP</span>
+                </div>
               </div>
             )}
           </div>
