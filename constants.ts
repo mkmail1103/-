@@ -40,7 +40,7 @@ export const MOBILIZATION_QUESTS = [
     { cost: 20, points: 400, rank: '黄', color: 'text-yellow-400' },
     { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
   ]},
-  { type: 'hero_shards', label: '英雄の欠片', category: 'item', unit: '個', variants: [
+  { type: 'hero_shards', label: 'レジェンド英雄の欠片', category: 'item', unit: '個', variants: [
     { cost: 68, points: 490, rank: '黄', color: 'text-yellow-400' },
     { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
     { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, // Changed to Purple

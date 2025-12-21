@@ -38,9 +38,45 @@ const TimeInput = ({
             value={value || ''} 
             onChange={e => onChange(parseInt(e.target.value)||0)}
             className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-right text-sm text-white focus:ring-1 focus:ring-slate-500 outline-none font-mono"
+            onFocus={(e) => e.target.select()}
           />
           <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none opacity-0"></span>
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">分</span>
+       </div>
+    </div>
+  );
+};
+
+// Unified Resource Input Component
+const ResourceInput = ({ 
+  label, 
+  value, 
+  onChange, 
+  icon: Icon, 
+  iconColor, 
+  iconBg 
+}: { 
+  label: string, 
+  value: number, 
+  onChange: (val: string) => void,
+  icon: any,
+  iconColor: string,
+  iconBg: string
+}) => {
+  return (
+    <div className="flex items-center gap-3 bg-[#1E293B] p-3 rounded-xl border border-slate-700 group hover:border-slate-500 transition-colors">
+       <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center shrink-0`}>
+          <Icon className={`w-5 h-5 ${iconColor}`} />
+       </div>
+       <div className="flex-1">
+          <label className="text-xs font-bold text-slate-400 uppercase block mb-0.5">{label}</label>
+          <input 
+             type="number" min="0" placeholder="0"
+             value={value || ''}
+             onChange={e => onChange(e.target.value)}
+             className="w-full bg-transparent text-white font-mono text-lg outline-none placeholder:text-slate-600 appearance-none"
+             onFocus={(e) => e.target.select()}
+          />
        </div>
     </div>
   );
@@ -188,7 +224,7 @@ const MobilizationGuide: React.FC = () => {
     // 1. Execute calculation for Standard Resources
     calculateForResource(inventory.diamonds, ['diamonds'], 'ダイヤ消費', Gem, 'text-indigo-400', '個', () => {});
     calculateForResource(inventory.hammer, ['hammer'], 'ハンマー', Hammer, 'text-amber-500', '個', () => {});
-    calculateForResource(inventory.hero_shards, ['hero_shards'], '英雄の欠片', Hexagon, 'text-purple-400', '個', () => {});
+    calculateForResource(inventory.hero_shards, ['hero_shards'], 'レジェンド英雄の欠片', Hexagon, 'text-purple-400', '個', () => {});
     calculateForResource(inventory.stamina, ['wild_beast'], '体力 (野獣)', Zap, 'text-emerald-400', '', () => {});
     
     // 2. Execute calculation for Specific Speedups (Saving remainders)
@@ -368,67 +404,49 @@ const MobilizationGuide: React.FC = () => {
                あなたの在庫を入力
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Diamonds */}
-              <div className="flex items-center gap-3 bg-[#1E293B] p-3 rounded-xl border border-slate-700">
-                 <div className="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Gem className="w-5 h-5 text-indigo-400" />
-                 </div>
-                 <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase">所持ダイヤ</label>
-                    <input 
-                       type="number" min="0" placeholder="0"
-                       value={inventory.diamonds || ''}
-                       onChange={e => handleInventoryChange('diamonds', e.target.value)}
-                       className="w-full bg-transparent text-white font-mono text-lg outline-none placeholder:text-slate-600"
-                    />
-                 </div>
-              </div>
+              <ResourceInput
+                label="所持ダイヤ"
+                value={inventory.diamonds}
+                onChange={v => handleInventoryChange('diamonds', v)}
+                icon={Gem}
+                iconColor="text-indigo-400"
+                iconBg="bg-indigo-500/20"
+              />
 
-              {/* Items */}
-              <div className="grid grid-cols-2 gap-3">
-                 <div className="bg-[#1E293B] p-3 rounded-xl border border-slate-700">
-                    <label className="text-xs font-bold text-amber-500 uppercase flex items-center gap-1 mb-1">
-                       <Hammer className="w-3 h-3" /> ハンマー
-                    </label>
-                    <input 
-                       type="number" min="0" placeholder="0"
-                       value={inventory.hammer || ''}
-                       onChange={e => handleInventoryChange('hammer', e.target.value)}
-                       className="w-full bg-slate-900 rounded-lg px-2 py-1 text-white font-mono outline-none"
-                    />
-                 </div>
-                 <div className="bg-[#1E293B] p-3 rounded-xl border border-slate-700">
-                    <label className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1 mb-1">
-                       <Hexagon className="w-3 h-3" /> 英雄の欠片
-                    </label>
-                    <input 
-                       type="number" min="0" placeholder="0"
-                       value={inventory.hero_shards || ''}
-                       onChange={e => handleInventoryChange('hero_shards', e.target.value)}
-                       className="w-full bg-slate-900 rounded-lg px-2 py-1 text-white font-mono outline-none"
-                    />
-                 </div>
-              </div>
+              {/* Stamina */}
+              <ResourceInput
+                label="体力"
+                value={inventory.stamina}
+                onChange={v => handleInventoryChange('stamina', v)}
+                icon={Zap}
+                iconColor="text-emerald-400"
+                iconBg="bg-emerald-500/20"
+              />
 
-              {/* Stamina Input */}
-              <div className="flex items-center gap-3 bg-[#1E293B] p-3 rounded-xl border border-slate-700">
-                 <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Zap className="w-5 h-5 text-emerald-400" />
-                 </div>
-                 <div className="flex-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase">体力</label>
-                    <input 
-                       type="number" min="0" placeholder="0"
-                       value={inventory.stamina || ''}
-                       onChange={e => handleInventoryChange('stamina', e.target.value)}
-                       className="w-full bg-transparent text-white font-mono text-lg outline-none placeholder:text-slate-600"
-                    />
-                 </div>
-              </div>
+              {/* Hero Shards */}
+              <ResourceInput
+                label="レジェンド英雄の欠片"
+                value={inventory.hero_shards}
+                onChange={v => handleInventoryChange('hero_shards', v)}
+                icon={Hexagon}
+                iconColor="text-purple-400"
+                iconBg="bg-purple-500/20"
+              />
+
+              {/* Hammer */}
+              <ResourceInput
+                label="ハンマー"
+                value={inventory.hammer}
+                onChange={v => handleInventoryChange('hammer', v)}
+                icon={Hammer}
+                iconColor="text-amber-500"
+                iconBg="bg-amber-500/20"
+              />
 
               {/* Speedups */}
-              <div className="space-y-3 pt-2 border-t border-white/5">
+              <div className="space-y-3 pt-4 border-t border-white/5 mt-2">
                  <div className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
                     <Clock className="w-3 h-3" /> 加速アイテム (分)
                  </div>
