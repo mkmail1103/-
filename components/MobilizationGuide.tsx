@@ -17,6 +17,35 @@ interface Inventory {
 
 type StrategyMode = 'efficiency' | 'power';
 
+// Specific handler for time inputs (minutes only) - Moved outside to prevent re-render focus loss
+const TimeInput = ({ 
+  label, 
+  value, 
+  onChange, 
+  colorClass 
+}: { 
+  label: string, 
+  value: number, 
+  onChange: (mins: number) => void,
+  colorClass?: string
+}) => {
+  return (
+    <div className="bg-[#1E293B] border border-slate-700 rounded-xl p-3 flex items-center justify-between gap-3">
+       <label className={`block text-xs font-bold uppercase ${colorClass || 'text-slate-300'}`}>{label}</label>
+       <div className="relative w-32">
+          <input 
+            type="number" min="0" placeholder="0" 
+            value={value || ''} 
+            onChange={e => onChange(parseInt(e.target.value)||0)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-right text-sm text-white focus:ring-1 focus:ring-slate-500 outline-none font-mono"
+          />
+          <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none opacity-0"></span>
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">分</span>
+       </div>
+    </div>
+  );
+};
+
 const MobilizationGuide: React.FC = () => {
   // Initial default values
   const defaultInventory: Inventory = {
@@ -57,35 +86,6 @@ const MobilizationGuide: React.FC = () => {
     setInventory(prev => ({ ...prev, [field]: num }));
   };
   
-  // Specific handler for time inputs (minutes only)
-  const TimeInput = ({ 
-    label, 
-    value, 
-    onChange, 
-    colorClass 
-  }: { 
-    label: string, 
-    value: number, 
-    onChange: (mins: number) => void,
-    colorClass?: string
-  }) => {
-    return (
-      <div className="bg-[#1E293B] border border-slate-700 rounded-xl p-3 flex items-center justify-between gap-3">
-         <label className={`block text-xs font-bold uppercase ${colorClass || 'text-slate-300'}`}>{label}</label>
-         <div className="relative w-32">
-            <input 
-              type="number" min="0" placeholder="0" 
-              value={value || ''} 
-              onChange={e => onChange(parseInt(e.target.value)||0)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-right text-sm text-white focus:ring-1 focus:ring-slate-500 outline-none font-mono"
-            />
-            <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 pointer-events-none opacity-0"></span>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 pointer-events-none">分</span>
-         </div>
-      </div>
-    );
-  };
-
   // --- Quest Strategy Simulation ---
   const simulation = useMemo(() => {
     let totalPoints = 0;
