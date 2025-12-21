@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { CalculationResult } from '../types';
 import { BUILDINGS, TROOP_DATA } from '../constants';
-import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info, Users, ChevronsUp } from 'lucide-react';
+import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info, Users, ChevronsUp, Gauge, Timer, CheckCircle2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 type Mode = 'building' | 'research' | 'troop';
@@ -83,6 +83,10 @@ const Calculator: React.FC = () => {
   const pointsEvent1 = powerIncrease * eventPointsPerPower;
   const pointsEvent2 = currentTotalMinutes * speedupPointsPerMinute;
 
+  // Efficiency Calculation (Points per Minute)
+  const efficiencyEvent1 = currentTotalMinutes > 0 ? pointsEvent1 / currentTotalMinutes : 0;
+  const efficiencyEvent2 = speedupPointsPerMinute; // Always 300
+
   let result: CalculationResult = CalculationResult.EQUAL;
   if (currentTotalMinutes === 0 && powerIncrease === 0) {
     // No input
@@ -117,6 +121,17 @@ const Calculator: React.FC = () => {
   };
 
   const CurrentIcon = modeInfo[mode].icon;
+
+  // Helper to format minutes into D H M
+  const formatThresholdTime = (minutes: number) => {
+    const d = Math.floor(minutes / 1440);
+    const h = Math.floor((minutes % 1440) / 60);
+    const m = Math.round(minutes % 60);
+
+    if (d > 0) return `${d}日 ${h}時間 ${m}分`;
+    if (h > 0) return `${h}時間 ${m}分`;
+    return `${m}分`;
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -244,10 +259,10 @@ const Calculator: React.FC = () => {
               <div className="md:col-span-2 space-y-6">
                 
                 {/* Troop Sub-Mode Toggle */}
-                <div className="flex gap-4">
+                <div className="flex flex-col md:flex-row gap-3 md:gap-4">
                   <button
                     onClick={() => setTroopSubMode('train')}
-                    className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`flex-1 py-4 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
                       troopSubMode === 'train' 
                         ? 'border-rose-500 bg-rose-500/10 text-rose-100' 
                         : 'border-slate-700 bg-[#1E293B] text-slate-500 hover:border-slate-600'
@@ -258,7 +273,7 @@ const Calculator: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setTroopSubMode('promote')}
-                    className={`flex-1 py-3 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`flex-1 py-4 px-4 rounded-xl border-2 font-bold flex items-center justify-center gap-2 transition-all ${
                       troopSubMode === 'promote' 
                         ? 'border-rose-500 bg-rose-500/10 text-rose-100' 
                         : 'border-slate-700 bg-[#1E293B] text-slate-500 hover:border-slate-600'
@@ -339,8 +354,44 @@ const Calculator: React.FC = () => {
             )}
           </div>
 
+          {/* Threshold Banner (New) */}
+          {powerIncrease > 0 && (
+            <div className="mt-8 p-0.5 rounded-xl bg-gradient-to-r from-amber-500/50 to-blue-500/50 relative overflow-hidden group shadow-lg">
+              <div className="absolute inset-0 bg-white/5 blur-xl group-hover:bg-white/10 transition-colors"></div>
+              <div className="relative bg-[#0F172A] rounded-[10px] p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                
+                <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto justify-center md:justify-start">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 shrink-0">
+                    <Timer className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">お得ライン (境目)</span>
+                      <span className="bg-slate-700 text-[10px] px-1.5 py-0.5 rounded text-slate-300 whitespace-nowrap hidden sm:inline-block">入力不要で確認可能</span>
+                    </div>
+                    {/* Adjusted text size for mobile optimization */}
+                    <div className="text-2xl md:text-3xl font-black text-white font-mono tracking-tight leading-none">
+                      {formatThresholdTime(thresholdMinutes)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center md:text-right w-full md:w-auto bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
+                  <div className="flex flex-col items-center md:items-end gap-0.5">
+                    <p className="text-xs md:text-sm text-slate-300 leading-snug">
+                      残り時間がこれより<span className="text-amber-400 font-bold text-sm md:text-base mx-1">短ければ</span>今加速！
+                    </p>
+                    <p className="text-xs md:text-sm text-slate-300 leading-snug">
+                      <span className="text-blue-400 font-bold text-sm md:text-base mr-1">長ければ</span>待機推奨
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Time Input */}
-          <div className="mt-8 pt-8 border-t border-white/5">
+          <div className={`pt-8 border-t border-white/5 ${powerIncrease > 0 ? 'mt-8' : 'mt-8'}`}>
             <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 block">残り時間 (加速する時間)</label>
             <div className="grid grid-cols-3 gap-4 md:gap-6">
               {[
@@ -391,9 +442,9 @@ const Calculator: React.FC = () => {
             }`}></div>
 
             {currentTotalMinutes > 0 || (powerIncrease > 0 && mode !== 'building') ? (
-              <div className="relative z-10 space-y-6">
+              <div className="relative z-10 w-full space-y-6">
                 <div className="inline-block">
-                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-6 bg-slate-800/50 px-4 py-1.5 rounded-full backdrop-blur">
+                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400 mb-2 bg-slate-800/50 px-4 py-1.5 rounded-full backdrop-blur">
                     Analysis Result
                   </h3>
                 </div>
@@ -406,9 +457,20 @@ const Calculator: React.FC = () => {
                     <div className="text-5xl md:text-6xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
                       <span className="text-transparent bg-clip-text bg-gradient-to-b from-amber-300 to-amber-500">今すぐ</span>加速
                     </div>
-                    <p className="text-amber-200/80 font-medium text-lg">
+                    <p className="text-amber-200/80 font-medium text-lg mb-8">
                       {modeInfo[mode].label}ポイントデーの方が効率的です
                     </p>
+                    
+                    {/* Embedded Threshold Info (Optional Confirmation) */}
+                    <div className="bg-black/30 backdrop-blur-md rounded-xl p-4 border border-amber-500/30 mx-auto max-w-sm">
+                      <div className="flex items-center justify-center gap-2 text-amber-100 text-xs font-semibold uppercase tracking-wider mb-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        判定基準
+                      </div>
+                      <div className="text-sm text-amber-100/80">
+                         お得ライン {formatThresholdTime(thresholdMinutes)} ＞ 今回の時間
+                      </div>
+                    </div>
                   </div>
                 )}
                 
@@ -420,7 +482,17 @@ const Calculator: React.FC = () => {
                     <div className="text-5xl md:text-6xl font-black text-white mb-3 tracking-tight drop-shadow-lg">
                       <span className="text-transparent bg-clip-text bg-gradient-to-b from-blue-300 to-blue-500">待機</span>推奨
                     </div>
-                    <p className="text-blue-200/80 font-medium text-lg">加速消費デーまで温存しましょう</p>
+                    <p className="text-blue-200/80 font-medium text-lg mb-8">加速消費デーまで温存しましょう</p>
+
+                    <div className="bg-black/30 backdrop-blur-md rounded-xl p-4 border border-blue-500/30 mx-auto max-w-sm">
+                      <div className="flex items-center justify-center gap-2 text-blue-100 text-xs font-semibold uppercase tracking-wider mb-1">
+                         <CheckCircle2 className="w-3 h-3" />
+                         判定基準
+                      </div>
+                      <div className="text-sm text-blue-100/80">
+                         お得ライン {formatThresholdTime(thresholdMinutes)} ＜ 今回の時間
+                      </div>
+                    </div>
                   </div>
                 )}
                 
@@ -451,32 +523,38 @@ const Calculator: React.FC = () => {
               詳細データ ({modeInfo[mode].label})
             </h3>
             <div className="space-y-5">
-              <div className="group">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-slate-400 text-sm">上昇する総力</span>
-                  <span className="text-lg font-bold text-white font-mono">{powerIncrease.toLocaleString()}</span>
+              
+              {/* Efficiency Comparison Section */}
+              <div className="group bg-white/5 rounded-xl p-4 border border-white/5">
+                <div className="flex items-center gap-2 mb-3 text-sm text-slate-300 font-semibold">
+                  <Gauge className="w-4 h-4 text-emerald-400" />
+                  加速効率 (1分あたりの獲得Pt)
+                </div>
+                
+                {/* Current Efficiency */}
+                <div className="flex justify-between items-center mb-2">
+                   <span className="text-slate-400 text-xs">今回の効率 ({modeInfo[mode].label}デー)</span>
+                   <span className={`text-base font-bold font-mono ${efficiencyEvent1 > 300 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                      {Math.round(efficiencyEvent1).toLocaleString()} <span className="text-[10px]">pt/分</span>
+                   </span>
+                </div>
+                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mb-3">
+                  <div className={`h-full rounded-full ${efficiencyEvent1 > 300 ? 'bg-emerald-500' : 'bg-slate-600'}`} style={{ width: `${Math.min(100, (efficiencyEvent1 / Math.max(efficiencyEvent1, 400)) * 100)}%` }}></div>
+                </div>
+
+                {/* Speedup Event Efficiency (Fixed) */}
+                <div className="flex justify-between items-center mb-2">
+                   <span className="text-slate-400 text-xs">加速消費デー (固定)</span>
+                   <span className="text-base font-bold font-mono text-blue-400">
+                      300 <span className="text-[10px]">pt/分</span>
+                   </span>
                 </div>
                 <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-slate-600 h-full w-full opacity-50"></div>
+                  <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (300 / Math.max(efficiencyEvent1, 400)) * 100)}%` }}></div>
                 </div>
               </div>
 
-              <div className="group">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-slate-400 text-sm">お得ライン (境目)</span>
-                  <span className="text-lg font-bold text-amber-400 font-mono">
-                    {thresholdMinutes.toLocaleString(undefined, { maximumFractionDigits: 1 })} <span className="text-xs text-amber-400/50">分</span>
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 h-full w-1/2 opacity-80"></div>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1 text-right">
-                  1総力 = {eventPointsPerPower}pt / 1分加速 = 300pt
-                </p>
-              </div>
-
-              <div className="group p-3 -mx-3 rounded-lg bg-white/5 border border-white/5">
+              <div className="group p-3 -mx-3 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-300 text-sm">入力された残り時間</span>
                   <span className={`text-xl font-bold font-mono ${
@@ -491,13 +569,13 @@ const Calculator: React.FC = () => {
           
           {/* Comparison Chart */}
           <div className="mt-8 pt-6 border-t border-white/5">
-             <div className="h-40 w-full">
-               <ResponsiveContainer width="100%" height="100%">
+             <div className="h-32 w-full">
+               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                  <BarChart 
                     data={chartData} 
                     layout="vertical" 
                     margin={{ top: 0, right: 80, left: 0, bottom: 0 }} 
-                    barSize={24}
+                    barSize={20}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#334155" opacity={0.5} />
                     <XAxis type="number" hide />
@@ -533,12 +611,19 @@ const Calculator: React.FC = () => {
           <Info className="w-5 h-5 text-blue-400" />
         </div>
         <div className="space-y-1">
-          <h4 className="font-bold text-blue-300">計算ロジックについて</h4>
-          <p>
+          <h4 className="font-bold text-blue-300">計算ロジックと戦略メモ</h4>
+          <p className="mb-2">
             境目となる時間（分） = 上昇する総力 × (イベント倍率 ÷ 300) <br/>
-            建造・研究は倍率30（÷10）、兵士は倍率20（÷15）で計算されます。<br/>
-            残り時間がこの境目より<strong>短い</strong>場合、イベントP（今）の方がお得です。
+            建造・研究は倍率30（÷10）、兵士は倍率20（÷15）で計算されます。
           </p>
+          {mode === 'troop' && (
+            <p className="text-amber-200/90 font-medium bg-amber-900/30 p-2 rounded border border-amber-500/30">
+              ⚡ <strong>兵士訓練のヒント:</strong><br/>
+              高レベル兵士（T6以上など）は、作成にかかる時間に対して上昇する総力が非常に高いため、
+              <strong>加速消費イベント（固定300pt/分）で加速を使うと損をする</strong>ケースがほとんどです。<br/>
+              「加速効率」が300を超えている場合、総力アップイベントで加速を使い切りましょう。
+            </p>
+          )}
         </div>
       </div>
     </div>
