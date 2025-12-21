@@ -1,3 +1,4 @@
+
 import { BuildingDefinition, ResourceConfig } from './types';
 
 // Helper to create levels 1-30 easily where applicable, though most are specific
@@ -5,18 +6,74 @@ const createLevels = (data: number[]): { level: number; powerIncrease: number }[
   return data.map((val, idx) => ({ level: idx + 1, powerIncrease: val }));
 };
 
+// --- ALLIANCE MOBILIZATION DATA ---
+// Updated to use Ranks: 黄 (Yellow), 紫 (Purple), 青 (Blue), 白 (White/Unknown)
+export const MOBILIZATION_QUESTS = [
+  // Speedups (General, Troop, Building, Research)
+  { type: 'speedup_general', label: '一般加速', category: 'speedup', variants: [
+    { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
+  ]},
+  { type: 'speedup_troop', label: '兵士加速', category: 'speedup', variants: [
+    { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
+  ]},
+  { type: 'speedup_building', label: '建築加速', category: 'speedup', variants: [
+    { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
+  ]},
+  { type: 'speedup_research', label: '研究加速', category: 'speedup', variants: [
+    { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
+  ]},
+  // Resources / Items
+  { type: 'hammer', label: 'ハンマー消費', category: 'item', unit: '個', variants: [
+    { cost: 35, points: 550, rank: '黄', color: 'text-yellow-400' },
+    { cost: 20, points: 400, rank: '黄', color: 'text-yellow-400' },
+    { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+  ]},
+  { type: 'hero_shards', label: '英雄の欠片', category: 'item', unit: '個', variants: [
+    { cost: 68, points: 490, rank: '黄', color: 'text-yellow-400' },
+    { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+  ]},
+  { type: 'diamonds', label: 'ダイヤ消費', category: 'item', unit: '個', variants: [
+    { cost: 50000, points: 670, rank: '黄', color: 'text-yellow-400' },
+    { cost: 30000, points: 460, rank: '黄', color: 'text-yellow-400' },
+    { cost: 15000, points: 360, rank: '紫', color: 'text-purple-400' },
+    { cost: 10000, points: 280, rank: '紫', color: 'text-purple-400' },
+    { cost: 5000, points: 200, rank: '青', color: 'text-blue-400' },
+  ]},
+  // Stamina (Wild Beast: 10 stamina/kill)
+  { type: 'wild_beast', label: '野獣討伐', category: 'stamina', unit: '体力', variants: [
+    { cost: 300, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
+    { cost: 200, points: 240, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 150, points: 200, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 100, points: 160, rank: '青', color: 'text-blue-400' },
+    { cost: 50, points: 120, rank: '青', color: 'text-blue-400' },
+  ]},
+];
+
 // Troop Data (Level 1-10)
 export const TROOP_DATA = [
-  { level: 1, name: '見習い', power: 3 },
-  { level: 2, name: '一般', power: 4 },
-  { level: 3, name: '優秀', power: 6 },
-  { level: 4, name: '熟練', power: 9 },
-  { level: 5, name: '豪胆', power: 13 },
-  { level: 6, name: '勇猛', power: 20 },
-  { level: 7, name: '不屈', power: 28 },
-  { level: 8, name: '精鋭', power: 38 },
-  { level: 9, name: '名誉', power: 50 },
-  { level: 10, name: 'エース', power: 66 },
+  { level: 1, name: '見習い', power: 3, trainingPoints: 90 },
+  { level: 2, name: '一般', power: 4, trainingPoints: 120 },
+  { level: 3, name: '優秀', power: 6, trainingPoints: 180 },
+  { level: 4, name: '熟練', power: 9, trainingPoints: 265 },
+  { level: 5, name: '豪胆', power: 13, trainingPoints: 385 },
+  { level: 6, name: '勇猛', power: 20, trainingPoints: 595 },
+  { level: 7, name: '不屈', power: 28, trainingPoints: 830 },
+  { level: 8, name: '精鋭', power: 38, trainingPoints: 1130 },
+  { level: 9, name: '名誉', power: 50, trainingPoints: 1485 },
+  { level: 10, name: 'エース', power: 66, trainingPoints: 1960 },
 ];
 
 // Data extracted from PDF/OCR

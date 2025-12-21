@@ -1,16 +1,33 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { RESOURCE_CONFIGS } from '../constants';
 import { ResourceType } from '../types';
 import { Calculator, AlertTriangle, TrendingDown, Scale, ArrowDown, Medal, ArrowRight, Info, ChevronDown, ChevronUp } from 'lucide-react';
 
 const ResourceManager: React.FC = () => {
   // State for current holdings (string to allow "1.5m" inputs) for all resources
-  const [holdings, setHoldings] = useState<Record<ResourceType, string>>({
-    food: '',
-    wood: '',
-    stone: '',
-    iron: ''
+  // Initialize from local storage if available
+  const [holdings, setHoldings] = useState<Record<ResourceType, string>>(() => {
+    try {
+      const saved = localStorage.getItem('kingshot_resources');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch(e) {
+      // ignore error
+    }
+    return {
+      food: '',
+      wood: '',
+      stone: '',
+      iron: ''
+    };
   });
+
+  // Save to local storage on change
+  useEffect(() => {
+    localStorage.setItem('kingshot_resources', JSON.stringify(holdings));
+  }, [holdings]);
 
   // State to track IME composition status to prevent input duplication bugs
   const [isComposing, setIsComposing] = useState(false);
@@ -22,7 +39,8 @@ const ResourceManager: React.FC = () => {
   const toHalfWidth = (str: string): string => {
     return str
       .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-      .replace(/．/g, '.');
+      .replace(/．/g, '.')
+      .replace(/，/g, ',');
   };
 
   // --- Smart Parsing Logic ---
@@ -160,11 +178,14 @@ const ResourceManager: React.FC = () => {
         
         {/* Left Column: Inputs */}
         <div className="space-y-6">
-          <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-xl">
-            <h3 className="text-slate-300 text-sm font-bold uppercase tracking-wider mb-6 flex items-center gap-2">
-              <Calculator className="w-4 h-4" />
-              総資源入力
-            </h3>
+          <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-xl relative overflow-hidden">
+            
+            <div className="mb-6 bg-slate-800/50 -mx-6 -mt-6 p-4 border-b border-white/5">
+              <h3 className="text-slate-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+                <Calculator className="w-4 h-4" />
+                総資源入力
+              </h3>
+            </div>
 
             <div className="space-y-6">
               {RESOURCE_CONFIGS.map((config) => (
@@ -214,6 +235,12 @@ const ResourceManager: React.FC = () => {
                    </div>
                 </div>
               ))}
+            </div>
+            
+            <div className="mt-6 text-center">
+              <p className="text-xs text-slate-500">
+                ※ K=1,000, M=1,000,000, G=1,000,000,000
+              </p>
             </div>
           </div>
         </div>

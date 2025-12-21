@@ -1,12 +1,33 @@
+
 import React, { useState } from 'react';
 import Calculator from './components/Calculator';
 import ResourceManager from './components/ResourceManager';
-import { Crown, Zap, Pickaxe } from 'lucide-react';
+import MobilizationGuide from './components/MobilizationGuide';
+import { Crown, Zap, Pickaxe, Gift, Copy, Check, ExternalLink, User, Info, Flag, History } from 'lucide-react';
 
-type ViewMode = 'speedup' | 'resource';
+type ViewMode = 'speedup' | 'resource' | 'giftcode' | 'mobilization';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewMode>('speedup');
+  // Default view changed to 'mobilization' as requested
+  const [view, setView] = useState<ViewMode>('mobilization');
+  const [isCopied, setIsCopied] = useState(false);
+  const [copiedPastCode, setCopiedPastCode] = useState<string | null>(null);
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleCopyPastCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedPastCode(code);
+    setTimeout(() => setCopiedPastCode(null), 2000);
+  };
+
+  const PAST_CODES = [
+    "STORELAUNCH"
+  ];
 
   return (
     <div className="min-h-screen bg-[#0B1120] text-slate-100 relative overflow-hidden selection:bg-amber-500/30">
@@ -30,78 +51,275 @@ const App: React.FC = () => {
               <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-500 font-semibold mt-0.5 sm:mt-1">Unofficial Strategy Tool</p>
             </div>
           </div>
-
-          {/* View Switcher */}
-          <div className="flex bg-slate-800/50 p-1 rounded-lg border border-white/5 shrink-0">
-             <button
-                onClick={() => setView('speedup')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
-                  view === 'speedup' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                }`}
-             >
-               <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-               <span>加速<span className="hidden sm:inline">計算</span></span>
-             </button>
-             <button
-                onClick={() => setView('resource')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
-                  view === 'resource' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                }`}
-             >
-               <Pickaxe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-               <span>資源<span className="hidden sm:inline">バランス</span></span>
-             </button>
-          </div>
+          
+          <div className="text-xs text-slate-500 font-medium">v0.23</div>
         </div>
       </header>
 
+      {/* Navigation Bar - Modernized */}
+      <div className="sticky top-16 z-40 bg-[#0B1120]/60 backdrop-blur-md border-b border-white/5 py-4">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="bg-slate-900/80 p-1.5 rounded-xl border border-white/5 flex gap-1 shadow-2xl relative overflow-hidden">
+             {[
+               { id: 'mobilization', icon: Flag, label: '総動員', color: 'bg-indigo-600', text: 'text-indigo-400' },
+               { id: 'speedup', icon: Zap, label: '加速計算', color: 'bg-amber-600', text: 'text-amber-400' },
+               { id: 'resource', icon: Pickaxe, label: '資源', color: 'bg-blue-600', text: 'text-blue-400' },
+               { id: 'giftcode', icon: Gift, label: 'ギフコ', color: 'bg-emerald-600', text: 'text-emerald-400' },
+             ].map((tab) => {
+               const isActive = view === tab.id;
+               const Icon = tab.icon;
+               return (
+                 <button
+                    key={tab.id}
+                    onClick={() => setView(tab.id as ViewMode)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all duration-300 relative ${
+                      isActive 
+                        ? 'bg-slate-800 text-white shadow-md shadow-black/20 ring-1 ring-white/10' 
+                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    }`}
+                 >
+                   {isActive && (
+                     <span className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${tab.color}`}></span>
+                   )}
+                   <Icon className={`w-4 h-4 ${isActive ? tab.text : 'opacity-70'}`} strokeWidth={isActive ? 2.5 : 2} />
+                   <span className={isActive ? 'opacity-100' : 'opacity-90'}>{tab.label}</span>
+                 </button>
+               );
+             })}
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-6xl mx-auto py-8 sm:py-12 px-4 md:px-6">
+      <main className="flex-1 w-full max-w-6xl mx-auto py-8 px-4 md:px-6">
         
+        {view === 'mobilization' && (
+           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <div className="text-center mb-8 max-w-3xl mx-auto">
+              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium mb-4 backdrop-blur-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mr-2 animate-pulse"></span>
+                同盟イベント攻略
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight drop-shadow-2xl">
+                同盟総動員クエスト推奨
+              </h2>
+              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
+                手持ちのアイテムとプレイスタイルから、効率の良いクエストとクエスト回数を自動で選定します。
+              </p>
+              <p className="text-xs text-slate-500 mt-2 bg-slate-900/50 inline-block px-3 py-1 rounded-lg border border-white/5">
+                 ※巨獣、採取、兵士訓練/昇格、領主装備はまだ未対応です
+              </p>
+            </div>
+            <MobilizationGuide />
+           </div>
+        )}
+
         {view === 'speedup' && (
-          <>
-            <div className="text-center mb-8 sm:mb-12 max-w-3xl mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/5 border border-white/10 text-amber-300 text-xs font-medium mb-4 sm:mb-6 backdrop-blur-sm">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center mb-8 max-w-3xl mx-auto">
+              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium mb-4 backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mr-2 animate-pulse"></span>
                 最強領主イベント攻略
               </div>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white mb-4 sm:mb-6 tracking-tight drop-shadow-2xl">
-                加速アイテム
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight drop-shadow-2xl">
+                加速アイテム最適化
               </h2>
-              <p className="text-base sm:text-lg text-slate-400 leading-relaxed max-w-2xl mx-auto px-2">
-                「総力上昇イベント」の日と「加速消費」の日。<br className="hidden md:block"/>
-                建造・研究・訓練、それぞれの効率を瞬時に計算します。
+              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
+                「総力上昇」と「加速消費」。どちらのイベントで加速を使うべきか瞬時に判定します。
               </p>
             </div>
             <Calculator />
-          </>
+          </div>
         )}
 
         {view === 'resource' && (
-          <>
-            <div className="text-center mb-8 sm:mb-12 max-w-3xl mx-auto relative animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-white/5 border border-white/10 text-blue-300 text-xs font-medium mb-4 sm:mb-6 backdrop-blur-sm">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center mb-8 max-w-3xl mx-auto">
+              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-medium mb-4 backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 animate-pulse"></span>
                 資源最適化ツール
               </div>
-              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white mb-4 sm:mb-6 tracking-tight drop-shadow-2xl">
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight drop-shadow-2xl">
                 資源バランス診断
               </h2>
-              <p className="text-base sm:text-lg text-slate-400 leading-relaxed max-w-2xl mx-auto px-2">
-                統計画面の「総資源」を入力して、比率（20:20:4:1）をチェック。<br />
-                相対的に不足している資源を見つけ出し、<br className="hidden sm:block" />効率的な採取計画を立てましょう。
+              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
+                手持ちの資源比率（20:20:4:1）をチェックし、不足している資源を特定します。
               </p>
             </div>
             <ResourceManager />
-          </>
+          </div>
+        )}
+
+        {view === 'giftcode' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center mb-8 max-w-3xl mx-auto">
+              <div className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-medium mb-4 backdrop-blur-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
+                報酬受け取り
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-3 tracking-tight drop-shadow-2xl">
+                ギフトコード交換
+              </h2>
+              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
+                最新のコードを確認して、ゲーム内アイテムを無料で獲得しましょう。
+              </p>
+            </div>
+
+            <div className="max-w-3xl mx-auto space-y-8">
+              
+              {/* Main Code Card */}
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl opacity-30 group-hover:opacity-50 blur transition duration-500"></div>
+                <div className="relative bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-8 md:p-12 shadow-2xl text-center">
+                  <h3 className="text-emerald-400 font-bold tracking-widest uppercase mb-4 text-sm">Latest Gift Code</h3>
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-6">
+                    <code className="text-4xl md:text-5xl font-black text-white font-mono tracking-tight bg-[#0B1120] px-6 py-3 rounded-xl border border-white/5 shadow-inner">
+                      KINGSHOT13M
+                    </code>
+                  </div>
+                  <button 
+                    onClick={() => handleCopyCode("KINGSHOT13M")}
+                    className={`inline-flex items-center gap-2 px-8 py-3 rounded-full font-bold text-lg transition-all active:scale-95 ${
+                      isCopied 
+                        ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]' 
+                        : 'bg-white text-slate-900 hover:bg-emerald-50'
+                    }`}
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="w-5 h-5" />
+                        コピーしました！
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-5 h-5" />
+                        コードをコピー
+                      </>
+                    )}
+                  </button>
+                  <p className="text-xs text-slate-500 mt-4">
+                    ※ギフトコードの有効期限は不明です。お早めにご利用ください。
+                  </p>
+                </div>
+              </div>
+
+              {/* Instructions Steps */}
+              <div className="bg-[#0F172A]/60 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8">
+                 <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                   <Info className="w-6 h-6 text-emerald-400" />
+                   ギフトコードの使い方
+                 </h3>
+
+                 <div className="space-y-6 relative">
+                    {/* Connecting Line */}
+                    <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-800 -z-10 hidden md:block"></div>
+
+                    {/* Step 1 */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                       <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 relative z-10">1</div>
+                       <div className="flex-1 bg-slate-900/50 rounded-xl p-4 border border-white/5">
+                          <h4 className="font-bold text-slate-200 mb-2">公式サイトへアクセス</h4>
+                          <p className="text-sm text-slate-400 mb-3">
+                            Century Gamesの公式ギフトコード交換サイトを開きます。
+                          </p>
+                          <a 
+                            href="https://ks-giftcode.centurygame.com/" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300 font-bold text-sm bg-emerald-500/10 px-4 py-2 rounded-lg border border-emerald-500/20 transition-colors"
+                          >
+                            交換サイトを開く
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                       </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                       <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 relative z-10">2</div>
+                       <div className="flex-1 bg-slate-900/50 rounded-xl p-4 border border-white/5">
+                          <h4 className="font-bold text-slate-200 mb-2">IDを確認して入力</h4>
+                          <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                             自分の<span className="text-white font-bold">プレイヤーID</span>と、コピーした<span className="text-white font-bold">ギフトコード</span>を入力します。
+                          </p>
+                          
+                          <div className="bg-[#0B1120] rounded-lg p-4 border border-white/5">
+                             <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                               <User className="w-3 h-3" /> IDの確認方法
+                             </h5>
+                             <ul className="text-sm text-slate-300 space-y-2">
+                               <li className="flex items-start gap-2">
+                                 <span className="bg-slate-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                                 ゲーム画面左上の「自分のアイコン」をタップ
+                               </li>
+                               <li className="flex items-start gap-2">
+                                 <span className="bg-slate-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                                 名前の下にある「ID」の右側の数字を確認
+                               </li>
+                               <li className="flex items-start gap-2">
+                                 <span className="bg-slate-700 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                                 <span>
+                                   数字横の <span className="inline-block p-0.5 bg-slate-600 rounded mx-1"><Copy className="w-3 h-3" /></span> をタップしてコピー
+                                 </span>
+                               </li>
+                             </ul>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                       <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 font-bold text-slate-300 relative z-10">3</div>
+                       <div className="flex-1 bg-slate-900/50 rounded-xl p-4 border border-white/5">
+                          <h4 className="font-bold text-slate-200 mb-2">交換完了！</h4>
+                          <p className="text-sm text-slate-400">
+                             サイトで「交換」ボタンを押すと、ゲーム内のメールに報酬が届きます。
+                          </p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Past Codes Section */}
+              <div className="bg-[#0F172A]/40 backdrop-blur-md rounded-2xl border border-white/5 p-6 md:p-8">
+                <h3 className="text-lg font-bold text-slate-300 mb-1 flex items-center gap-2">
+                  <History className="w-5 h-5 text-slate-500" />
+                  過去のギフトコード
+                </h3>
+                <p className="text-xs text-slate-500 mb-4 ml-7">
+                  ※有効期限は不明です。期限切れの可能性があります。
+                </p>
+                
+                <div className="grid gap-3">
+                  {PAST_CODES.map((code) => (
+                    <div key={code} className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-white/5 group hover:border-white/10 transition-colors">
+                      <code className="font-mono text-slate-300 font-bold px-2">{code}</code>
+                      <button 
+                        onClick={() => handleCopyPastCode(code)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                          copiedPastCode === code
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'
+                        }`}
+                      >
+                        {copiedPastCode === code ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedPastCode === code ? 'コピー済' : 'コピー'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
         )}
 
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-20">
+      <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.16</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23</p>
         </div>
       </footer>
     </div>
