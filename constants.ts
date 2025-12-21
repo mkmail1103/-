@@ -1,4 +1,4 @@
-import { BuildingDefinition } from './types';
+import { BuildingDefinition, ResourceConfig } from './types';
 
 // Helper to create levels 1-30 easily where applicable, though most are specific
 const createLevels = (data: number[]): { level: number; powerIncrease: number }[] => {
@@ -117,5 +117,58 @@ export const BUILDINGS: BuildingDefinition[] = [
     id: 'house_wall',
     name: '民家、防衛塔、城壁',
     levels: createLevels(houseWallData),
+  },
+];
+
+// Common Resource Packs - Updated to the specific 6 requested
+const COMMON_PACKS = [
+  { id: 'p100', value: 100, label: '100' },
+  { id: 'p1k', value: 1000, label: '1K' },
+  { id: 'p1k_safe', value: 1000, label: '1K', isSafe: true },
+  { id: 'p10k', value: 10000, label: '10K' },
+  { id: 'p10k_safe', value: 10000, label: '10K', isSafe: true },
+  { id: 'p100k', value: 100000, label: '100K' },
+];
+
+export const RESOURCE_CONFIGS: ResourceConfig[] = [
+  {
+    id: 'food',
+    name: 'パン',
+    ratio: 20,
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-500',
+    ringColor: 'ring-orange-500',
+    iconColor: '#f97316',
+    packs: COMMON_PACKS
+  },
+  {
+    id: 'wood',
+    name: '木材',
+    ratio: 20,
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500',
+    ringColor: 'ring-emerald-500',
+    iconColor: '#10b981',
+    packs: COMMON_PACKS
+  },
+  {
+    id: 'stone',
+    name: '石材',
+    ratio: 4,
+    color: 'text-slate-300',
+    bgColor: 'bg-slate-500',
+    ringColor: 'ring-slate-500',
+    iconColor: '#94a3b8',
+    packs: COMMON_PACKS
+  },
+  {
+    id: 'iron',
+    name: '鉄鉱',
+    ratio: 1,
+    color: 'text-indigo-400',
+    bgColor: 'bg-indigo-500',
+    ringColor: 'ring-indigo-500',
+    iconColor: '#6366f1',
+    packs: COMMON_PACKS
   },
 ];
