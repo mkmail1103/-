@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RESOURCE_CONFIGS } from '../constants';
 import { ResourceType } from '../types';
-import { Calculator, AlertTriangle, TrendingDown, Scale, ArrowDown, Medal } from 'lucide-react';
+import { Calculator, AlertTriangle, TrendingDown, Scale, ArrowDown, Medal, ArrowRight, Info, ChevronDown, ChevronUp } from 'lucide-react';
 
 const ResourceManager: React.FC = () => {
   // State for current holdings (string to allow "1.5m" inputs) for all resources
@@ -14,6 +14,9 @@ const ResourceManager: React.FC = () => {
 
   // State to track IME composition status to prevent input duplication bugs
   const [isComposing, setIsComposing] = useState(false);
+
+  // State for instruction visibility
+  const [isInstructionOpen, setIsInstructionOpen] = useState(false);
 
   // --- Helper: Full-width to Half-width Conversion ---
   const toHalfWidth = (str: string): string => {
@@ -99,18 +102,58 @@ const ResourceManager: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Introduction Card */}
-      <div className="bg-slate-800/50 border border-white/5 rounded-2xl p-6 text-center">
-         <h3 className="text-white font-bold text-lg mb-2 flex items-center justify-center gap-2">
-            <Scale className="w-5 h-5 text-blue-400" />
-            資源バランス診断 (比率 20:20:4:1)
-         </h3>
-         <p className="text-slate-400 text-sm">
-           ゲーム内の統計画面にある「総資源」を入力してください。<br/>
-           比率に基づいて、最も不足している資源（採取優先度）を算出します。
-         </p>
+      {/* Introduction Card - Collapsible */}
+      <div className="bg-slate-800/50 border border-white/5 rounded-2xl overflow-hidden transition-all duration-300">
+         <div 
+            onClick={() => setIsInstructionOpen(!isInstructionOpen)}
+            className="p-4 cursor-pointer hover:bg-white/5 transition-colors flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 select-none"
+         >
+            <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <Scale className="w-5 h-5 text-blue-400" />
+                資源バランス診断 (比率 20:20:4:1)
+            </h3>
+            
+            <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-300 ${
+                isInstructionOpen 
+                ? 'bg-slate-700 text-slate-200 border-slate-600' 
+                : 'bg-slate-900/50 text-slate-400 border-white/5 hover:text-slate-200 hover:border-white/10'
+            }`}>
+                <Info className="w-3.5 h-3.5" />
+                <span>総資源の確認方法</span>
+                {isInstructionOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </div>
+         </div>
+         
+         {isInstructionOpen && (
+             <div className="px-6 pb-6 pt-2 border-t border-white/5 bg-slate-800/30 animate-in slide-in-from-top-2 fade-in duration-200">
+                <div className="bg-slate-900/50 rounded-xl border border-white/5 mb-4 shadow-inner max-w-2xl mx-auto overflow-hidden mt-2">
+                    <div className="bg-white/5 py-2 px-3 text-center border-b border-white/5">
+                        <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                           <Info className="w-3.5 h-3.5" />
+                           データの確認場所
+                        </div>
+                    </div>
+                    
+                    <div className="p-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm font-medium text-slate-300">
+                       <span className="bg-slate-700/80 px-3 py-1.5 rounded-lg text-xs text-slate-200 border border-slate-600/50 whitespace-nowrap">バッグ</span>
+                       
+                       <ArrowRight className="w-3.5 h-3.5 text-slate-600 rotate-90 sm:rotate-0" />
+                       
+                       <span className="bg-slate-700/80 px-3 py-1.5 rounded-lg text-xs text-slate-200 border border-slate-600/50 whitespace-nowrap">右上のグラフアイコン</span>
+                       
+                       <ArrowRight className="w-3.5 h-3.5 text-slate-600 rotate-90 sm:rotate-0" />
+                       
+                       <span className="text-amber-400 font-bold bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)] whitespace-nowrap">「総資源」を入力</span>
+                    </div>
+                </div>
+
+                <p className="text-slate-400 text-sm text-center leading-relaxed">
+                   上記の場所で確認できる数値を入力してください。
+                </p>
+             </div>
+         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
