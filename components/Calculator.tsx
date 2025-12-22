@@ -16,6 +16,58 @@ enum RecommendationType {
   EQUAL = 'EQUAL'
 }
 
+// Reusable Input Component that handles IME composition
+const CompositionInput = ({
+  value,
+  onChange,
+  placeholder,
+  className,
+  onFocus
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+}) => {
+  const [localValue, setLocalValue] = useState(value);
+  const [isComposing, setIsComposing] = useState(false);
+
+  useEffect(() => {
+    if (!isComposing) {
+      setLocalValue(value);
+    }
+  }, [value, isComposing]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setLocalValue(raw);
+    
+    if (!isComposing) {
+       onChange(raw);
+    }
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(false);
+    onChange(e.currentTarget.value);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={localValue}
+      onChange={handleChange}
+      onCompositionStart={() => setIsComposing(true)}
+      onCompositionEnd={handleCompositionEnd}
+      onFocus={onFocus}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+};
+
 const Calculator: React.FC = () => {
   // --- Persistent State Logic ---
   const usePersistentState = (key: string, defaultValue: string) => {
@@ -190,6 +242,23 @@ const Calculator: React.FC = () => {
   }
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
+  
+  const handleFormattedChange = (setter: (val: string) => void) => (rawValue: string) => {
+      // 1. Convert full-width to half-width
+      const normalized = rawValue.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+      // 2. Remove anything that isn't a digit
+      const raw = normalized.replace(/[^0-9]/g, '');
+      // 3. Format with commas
+      const formatted = raw ? parseInt(raw).toLocaleString() : '';
+      setter(formatted);
+  };
+  
+  // Special handler for simple numeric inputs (days, hours, minutes) which don't need commas but need full-width support
+  const handleSimpleNumericChange = (setter: (val: string) => void) => (rawValue: string) => {
+      const normalized = rawValue.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+      const raw = normalized.replace(/[^0-9]/g, '');
+      setter(raw);
+  };
 
   // Mode Display Info
   const modeInfo = {
@@ -313,13 +382,11 @@ const Calculator: React.FC = () => {
                   <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-0.5 rounded">手動入力モード</span>
                 </div>
                 <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
+                  <CompositionInput
                     placeholder="例: 12000"
                     value={manualPowerStr}
                     onFocus={handleFocus}
-                    onChange={(e) => setManualPowerStr(e.target.value)}
+                    onChange={handleFormattedChange(setManualPowerStr)}
                     className="w-full bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl pl-4 pr-12 py-4 text-xl font-mono text-white focus:ring-2 focus:ring-amber-500 outline-none shadow-inner transition-colors"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 font-bold">
@@ -404,13 +471,11 @@ const Calculator: React.FC = () => {
                       {troopSubMode === 'train' ? '訓練人数' : '昇格させる人数'}
                     </label>
                     <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
+                      <CompositionInput
                         placeholder="例: 1000"
                         value={troopCount}
                         onFocus={handleFocus}
-                        onChange={(e) => setTroopCount(e.target.value)}
+                        onChange={handleFormattedChange(setTroopCount)}
                         className="w-full bg-[#1E293B] border border-slate-700 rounded-lg pl-4 pr-12 py-3 font-mono text-lg text-white focus:ring-2 focus:ring-rose-500 outline-none"
                       />
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">人</span>
@@ -421,9 +486,9 @@ const Calculator: React.FC = () => {
                 {/* Calculation Preview */}
                 <div className="text-center text-sm text-slate-400">
                   {troopSubMode === 'train' ? (
-                     <span>総力 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} × {parseInt(troopCount || '0').toLocaleString()}人</span>
+                     <span>総力 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} × {parseInt(troopCount.replace(/,/g, '') || '0').toLocaleString()}人</span>
                   ) : (
-                    <span>(目標 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} - 元 {TROOP_DATA.find(t => t.level === troopSourceLevel)?.power}) × {parseInt(troopCount || '0').toLocaleString()}人</span>
+                    <span>(目標 {TROOP_DATA.find(t => t.level === troopTargetLevel)?.power} - 元 {TROOP_DATA.find(t => t.level === troopSourceLevel)?.power}) × {parseInt(troopCount.replace(/,/g, '') || '0').toLocaleString()}人</span>
                   )}
                   <span className="mx-2">=</span>
                   <span className="text-rose-400 font-bold text-lg">+{powerIncrease.toLocaleString()} 総力UP</span>
@@ -478,12 +543,10 @@ const Calculator: React.FC = () => {
                 { label: '分', value: minutes, setter: setMinutes }
               ].map((field, idx) => (
                 <div key={idx} className="relative">
-                  <input
-                    type="number"
-                    min="0"
+                  <CompositionInput
                     value={field.value}
                     onFocus={handleFocus}
-                    onChange={(e) => field.setter(e.target.value)}
+                    onChange={handleSimpleNumericChange(field.setter)}
                     className="w-full bg-[#1E293B] border border-slate-700 hover:border-slate-500 rounded-xl pl-4 pr-12 py-4 text-xl font-mono text-white focus:ring-2 focus:ring-amber-500 outline-none shadow-inner transition-colors"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-medium text-sm">{field.label}</span>

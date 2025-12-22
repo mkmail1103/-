@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Calculator from './components/Calculator';
 import ResourceManager from './components/ResourceManager';
@@ -8,7 +7,7 @@ import { Crown, Zap, Pickaxe, Gift, Copy, Check, ExternalLink, User, Info, Flag,
 type ViewMode = 'speedup' | 'resource' | 'giftcode' | 'mobilization';
 
 const App: React.FC = () => {
-  // Default view changed to 'mobilization' as requested
+  // Default view set to 'mobilization' as requested
   const [view, setView] = useState<ViewMode>('mobilization');
   const [isCopied, setIsCopied] = useState(false);
   const [copiedPastCode, setCopiedPastCode] = useState<string | null>(null);
@@ -52,7 +51,7 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="text-xs text-slate-500 font-medium">v0.23.5</div>
+          <div className="text-xs text-slate-500 font-medium">v0.23.6</div>
         </div>
       </header>
 
@@ -62,7 +61,7 @@ const App: React.FC = () => {
           <div className="bg-slate-900/80 p-1.5 rounded-xl border border-white/5 flex gap-1 shadow-2xl relative overflow-hidden">
              {[
                { id: 'mobilization', icon: Flag, label: '総動員', color: 'bg-indigo-600', text: 'text-indigo-400' },
-               { id: 'speedup', icon: Zap, label: '加速計算', color: 'bg-amber-600', text: 'text-amber-400' },
+               { id: 'speedup', icon: Zap, label: '最強領主', color: 'bg-amber-600', text: 'text-amber-400' },
                { id: 'resource', icon: Pickaxe, label: '資源', color: 'bg-blue-600', text: 'text-blue-400' },
                { id: 'giftcode', icon: Gift, label: 'ギフコ', color: 'bg-emerald-600', text: 'text-emerald-400' },
              ].map((tab) => {
@@ -107,7 +106,7 @@ const App: React.FC = () => {
                 手持ちのアイテムとプレイスタイルから、効率の良いクエストとクエスト回数を自動で選定します。
               </p>
               <p className="text-xs text-slate-500 mt-2 bg-slate-900/50 inline-block px-3 py-1 rounded-lg border border-white/5">
-                 ※巨獣、採取、兵士訓練/昇格、領主装備はまだ未対応です
+                 ※兵士訓練/昇格、領主装備はまだ未対応です
               </p>
             </div>
             <MobilizationGuide />
@@ -319,7 +318,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.5</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.6</p>
         </div>
       </footer>
     </div>

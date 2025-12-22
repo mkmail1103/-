@@ -12,38 +12,38 @@ export const MOBILIZATION_QUESTS = [
   // Speedups (General, Troop, Building, Research)
   { type: 'speedup_general', label: '一般加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
-    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
   { type: 'speedup_troop', label: '兵士加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
-    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
   { type: 'speedup_building', label: '建築加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
-    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
   { type: 'speedup_research', label: '研究加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
-    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
   // Resources / Items
   { type: 'hammer', label: 'ハンマー消費', category: 'item', unit: '個', variants: [
     { cost: 35, points: 550, rank: '黄', color: 'text-yellow-400' },
     { cost: 20, points: 400, rank: '黄', color: 'text-yellow-400' },
-    { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' },
   ]},
   { type: 'hero_shards', label: 'レジェンド英雄の欠片', category: 'item', unit: '個', variants: [
     { cost: 68, points: 490, rank: '黄', color: 'text-yellow-400' },
-    { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+    { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, 
   ]},
   { type: 'diamonds', label: 'ダイヤ消費', category: 'item', unit: '個', variants: [
     { cost: 50000, points: 670, rank: '黄', color: 'text-yellow-400' },
@@ -52,14 +52,34 @@ export const MOBILIZATION_QUESTS = [
     { cost: 10000, points: 280, rank: '紫', color: 'text-purple-400' },
     { cost: 5000, points: 200, rank: '青', color: 'text-blue-400' },
   ]},
-  // Stamina (Wild Beast: 10 stamina/kill)
-  { type: 'wild_beast', label: '野獣討伐', category: 'stamina', unit: '体力', variants: [
-    { cost: 300, points: 300, rank: '黄', color: 'text-yellow-400' }, // Changed to Yellow
-    { cost: 200, points: 240, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
-    { cost: 150, points: 200, rank: '紫', color: 'text-purple-400' }, // Changed to Purple
+  // Stamina (Wild Beast) - Original Data Restored
+  { type: 'wild_beast', label: '野獣討伐 (体力)', category: 'stamina', unit: '体力', variants: [
+    { cost: 300, points: 300, rank: '黄', color: 'text-yellow-400' },
+    { cost: 200, points: 240, rank: '紫', color: 'text-purple-400' },
+    { cost: 150, points: 200, rank: '紫', color: 'text-purple-400' },
     { cost: 100, points: 160, rank: '青', color: 'text-blue-400' },
     { cost: 50, points: 120, rank: '青', color: 'text-blue-400' },
   ]},
+  // Giant Beast (Rally) - New Data (Free/Infinite)
+  { type: 'giant_beast', label: '巨獣討伐 (集結)', category: 'rally', unit: '回', variants: [
+    { cost: 10, points: 300, rank: '黄', color: 'text-yellow-400' },
+    { cost: 5, points: 200, rank: '紫', color: 'text-purple-400' },
+  ]},
+  // Charge (Purchase) - Updated with new data
+  { type: 'charge', label: 'パック購入', category: 'charge', unit: 'pt', variants: [
+    { cost: 50000, points: 1050, rank: '黄', color: 'text-yellow-400' },
+    { cost: 25000, points: 750, rank: '黄', color: 'text-yellow-400' },
+    { cost: 12500, points: 500, rank: '紫', color: 'text-purple-400' },
+    { cost: 7500, points: 400, rank: '紫', color: 'text-purple-400' },
+    { cost: 2500, points: 240, rank: '青', color: 'text-blue-400' },
+  ]},
+  // Gathering - Updated with new data
+  { type: 'gathering', label: '資源採集', category: 'gathering', unit: 'M', variants: [
+     { cost: 3.0, points: 240, rank: '黄', color: 'text-yellow-400' },
+     { cost: 2.5, points: 210, rank: '黄', color: 'text-yellow-400' },
+     { cost: 2.0, points: 180, rank: '紫', color: 'text-purple-400' },
+     { cost: 1.5, points: 150, rank: '青', color: 'text-blue-400' }, 
+  ]}
 ];
 
 // Troop Data (Level 1-10)
