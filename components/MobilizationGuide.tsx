@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import { MOBILIZATION_QUESTS } from '../constants';
-import { Timer, Hammer, Hexagon, Gem, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, SlidersHorizontal, MousePointerClick, Pickaxe, CreditCard, HelpCircle, Swords, BookOpen, Lightbulb, Scale, Target, Settings2 } from 'lucide-react';
+import { Timer, Hammer, Hexagon, Gem, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, SlidersHorizontal, MousePointerClick, Pickaxe, CreditCard, HelpCircle, Swords, BookOpen, Lightbulb, Scale, Target, Settings2, Camera, Loader2, LayoutGrid, Info, ArrowUpCircle } from 'lucide-react';
 
 // Type definitions for user inventory
 interface Inventory {
@@ -111,9 +112,6 @@ const ResourceInput = ({
     setLocalValue(raw);
 
     if (!isComposing) {
-        // We pass the raw value to parent, let parent handle normalization if needed or do it here
-        // The parent expects a string to normalize. 
-        // We can normalize here to be safe and consistent with TimeInput.
         const normalized = normalizeInput(raw);
         onChange(normalized);
     }
@@ -151,6 +149,30 @@ const ResourceInput = ({
   );
 };
 
+// --- ALGORITHM TYPES ---
+interface QuestVariant {
+  type: string;
+  rank: string;
+  cost: number;
+  points: number;
+  questLabel: string;
+  unit: string;
+  resourceKey: keyof Inventory; // Helper to know which resource to deduct
+  icon: any;
+  color: string;
+  efficiency: number; // Cost per Point
+}
+
+interface BreakdownItem {
+  id: string;
+  label: string;
+  questCount: number;
+  points: number;
+  details: string[];
+  icon: any;
+  color: string;
+}
+
 const MobilizationGuide: React.FC = () => {
   const defaultInventory: Inventory = {
     speedup_general_mins: 0,
@@ -176,25 +198,17 @@ const MobilizationGuide: React.FC = () => {
   const [targetQuests, setTargetQuests] = useState<number>(() => {
     try {
         const saved = localStorage.getItem('kingshot_mobilization_target');
-        return saved ? parseInt(saved) : 51;
+        return saved ? Math.min(69, parseInt(saved)) : 51;
     } catch {
         return 51;
-    }
-  });
-
-  // Strategy Preference State
-  const [strategyPreference, setStrategyPreference] = useState<'auto' | 'efficiency' | 'compression'>(() => {
-    try {
-        const saved = localStorage.getItem('kingshot_mobilization_strategy');
-        return (saved as 'auto' | 'efficiency' | 'compression') || 'auto';
-    } catch {
-        return 'auto';
     }
   });
 
   const [isSimulationOpen, setIsSimulationOpen] = useState(true);
   const [isImpossibleOpen, setIsImpossibleOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSpeedupInstructionOpen, setIsSpeedupInstructionOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('kingshot_mobilization_inventory_v3', JSON.stringify(inventory));
@@ -204,169 +218,369 @@ const MobilizationGuide: React.FC = () => {
     localStorage.setItem('kingshot_mobilization_target', targetQuests.toString());
   }, [targetQuests]);
 
-  useEffect(() => {
-    localStorage.setItem('kingshot_mobilization_strategy', strategyPreference);
-  }, [strategyPreference]);
-
   const handleInventoryChange = (field: keyof Inventory, value: string) => {
-    // Normalize logic is handled in ResourceInput or here. 
-    // Since ResourceInput calls with normalized string (but maybe not stripped of non-digits if user typed garbage),
-    // we robustly parse it here.
     const normalized = normalizeInput(value);
     const num = parseInt(normalized.replace(/[^0-9]/g, '')) || 0;
     setInventory(prev => ({ ...prev, [field]: num }));
   };
-  
-  // --- Enhanced Strategy Simulation ("Sweet Spot" Logic) ---
-  const simulation = useMemo(() => {
-    let totalPoints = 0;
-    let totalQuests = 0;
-    const MAX_QUESTS = targetQuests; // Use user selected target
-    
-    // Tracking leftovers for display
-    const remaining = { ...inventory };
-    
-    const breakdown: { 
-      id: string; 
-      label: string; 
-      questCount: number;
-      points: number; 
-      details: string[]; 
-      icon: any; 
-      color: string;
-    }[] = [];
 
-    // --- Phase 1: Determine Strategy (Efficiency vs Compression) ---
-    const calculatePotentialCount = () => {
-        let count = 0;
+  // --- Image Analysis for Speedups ---
+  const handleSpeedupImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzing(true);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        const base64Content = base64Data.split(',')[1];
         
-        // Helper to check max potential for a resource type
-        const check = (resAmount: number, type: string) => {
-            const variants = MOBILIZATION_QUESTS
-              .filter(q => q.type === type)
-              .flatMap(q => q.variants);
-            // Find cheapest variant
-            const cheapest = variants.reduce((min, cur) => cur.cost < min.cost ? cur : min, variants[0]);
-            if (cheapest && resAmount > 0) {
-                count += Math.floor(resAmount / cheapest.cost);
-            }
-        };
-
-        check(remaining.diamonds, 'diamonds');
-        check(remaining.hammer, 'hammer');
-        check(remaining.hero_shards, 'hero_shards');
-        check(remaining.stamina, 'wild_beast');
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        // Speedups (Approximation: treat all speedups as potential basic speedup quests)
-        const totalSpeedups = remaining.speedup_general_mins + remaining.speedup_troop_mins + remaining.speedup_building_mins + remaining.speedup_research_mins;
-        // Cheapest speedup is usually 900 mins
-        count += Math.floor(totalSpeedups / 900);
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: file.type,
+                    data: base64Content
+                  }
+                },
+                {
+                  text: `Analyze this game inventory screenshot to calculate the TOTAL minutes of speed-up items.
+Identify items by icon and text:
+1. General Speedup (Commonly blue arrows/clock, "一般加速"): Key "speedup_general_mins"
+2. Troop/Training Speedup (Helmet/Sword/Red, "訓練加速"): Key "speedup_troop_mins"
+3. Building Speedup (Hammer/Orange, "建築加速"): Key "speedup_building_mins"
+4. Research Speedup (Flask/Atom/Blue, "研究加速"): Key "speedup_research_mins"
 
-        return count;
-    };
+For each item found:
+1. Identify the time duration (e.g., "5m", "1h", "1d", "5分", "1時間").
+2. Identify the quantity owned (e.g., "x10", "Owned: 50").
+3. Calculate total minutes = duration_in_minutes * quantity.
+   (1h = 60m, 1d = 1440m)
 
-    const potentialQuests = calculatePotentialCount();
-    const isOverflowMode = potentialQuests > MAX_QUESTS;
-
-    let strategyMode = 'max_quests';
-    if (strategyPreference === 'auto') {
-        strategyMode = isOverflowMode ? 'max_score' : 'max_quests';
-    } else if (strategyPreference === 'compression') {
-        strategyMode = 'max_score';
-    } else {
-        // efficiency
-        strategyMode = 'max_quests';
-    }
-
-    // --- Helper: Simulate spending a resource ---
-    const simulateResourceSpend = (
-       resourceKey: keyof Inventory,
-       questTypes: string[],
-       label: string,
-       Icon: any,
-       color: string,
-       unitLabel: string
-    ) => {
-        let currentInv = remaining[resourceKey];
-        if (currentInv <= 0) return;
-
-        // Find relevant quests
-        const relevantVariants = MOBILIZATION_QUESTS
-            .filter(q => questTypes.includes(q.type))
-            .flatMap(q => q.variants.map(v => ({...v, questLabel: q.label, type: q.type})));
-
-        // --- SORTING STRATEGY ---
-        // If Overflow Mode (Too many items for the target): Prioritize High Points (Yellow) to compress usage.
-        // If Standard Mode (Not enough items): Prioritize Efficiency (Blue) to fill slots.
-        relevantVariants.sort((a, b) => {
-            if (strategyMode === 'max_score') {
-                // Descending Points (Primary), Ascending Cost (Secondary)
-                if (b.points !== a.points) return b.points - a.points;
-                return a.cost - b.cost;
-            } else {
-                // Efficiency: Cost per Point Ascending
-                const effA = a.cost / a.points;
-                const effB = b.cost / b.points;
-                return effA - effB;
-            }
-        });
-
-        let subPoints = 0;
-        let subQuests = 0;
-        let subDetails: string[] = [];
-
-        for (const v of relevantVariants) {
-            // UNLIMITED MODE: Do not break if we exceed MAX_QUESTS.
-            // if (totalQuests >= MAX_QUESTS) break; 
-
-            if (currentInv >= v.cost) {
-                let count = Math.floor(currentInv / v.cost);
-                
-                // UNLIMITED MODE: Do not limit count by remaining slots.
-                // const slotsLeft = MAX_QUESTS - totalQuests;
-                // if (count > slotsLeft) count = slotsLeft;
-
-                if (count > 0) {
-                    subPoints += count * v.points;
-                    subQuests += count;
-                    totalQuests += count; // Update global immediately
-                    currentInv -= (count * v.cost);
-                    subDetails.push(`${v.rank}：${v.questLabel} (${v.cost.toLocaleString()}${unitLabel}) × ${count}`);
+Sum up the totals for each category.
+Return ONLY a JSON object with keys: "speedup_general_mins", "speedup_troop_mins", "speedup_building_mins", "speedup_research_mins".
+Values must be integers (total minutes). If a category is not found, do not include the key or set to null.
+`
                 }
+              ]
+            },
+            config: {
+              responseMimeType: "application/json"
             }
+          });
+          
+          const resultText = response.text;
+          if (resultText) {
+             const data = JSON.parse(resultText);
+             setInventory(prev => ({
+               ...prev,
+               speedup_general_mins: data.speedup_general_mins !== null && data.speedup_general_mins !== undefined ? data.speedup_general_mins : prev.speedup_general_mins,
+               speedup_troop_mins: data.speedup_troop_mins !== null && data.speedup_troop_mins !== undefined ? data.speedup_troop_mins : prev.speedup_troop_mins,
+               speedup_building_mins: data.speedup_building_mins !== null && data.speedup_building_mins !== undefined ? data.speedup_building_mins : prev.speedup_building_mins,
+               speedup_research_mins: data.speedup_research_mins !== null && data.speedup_research_mins !== undefined ? data.speedup_research_mins : prev.speedup_research_mins,
+             }));
+          }
+        } catch (err) {
+          console.error("AI Analysis Error:", err);
+          alert("画像の解析に失敗しました。もう一度試すか、手動で入力してください。");
+        } finally {
+          setIsAnalyzing(false);
+          // Reset input so same file can be selected again
+          e.target.value = '';
         }
-        
-        remaining[resourceKey] = currentInv;
+      };
+    } catch (error) {
+       console.error("File Processing Error:", error);
+       setIsAnalyzing(false);
+    }
+  };
 
-        if (subQuests > 0) {
-            totalPoints += subPoints;
-            breakdown.push({
-                id: resourceKey,
-                label,
-                questCount: subQuests,
-                points: subPoints,
-                details: subDetails,
-                icon: Icon,
-                color
-            });
-        }
+  // --- HELPER: Quest Definitions ---
+  // Maps constants to a flatter structure for the algorithm
+  const availableQuestVariants = useMemo(() => {
+    const variants: QuestVariant[] = [];
+    
+    // Mapping Quest Types to Resource Keys and Icons
+    const mapTypeToResource: Record<string, { key: keyof Inventory, icon: any, color: string, unit: string }> = {
+       'speedup_general': { key: 'speedup_general_mins', icon: Clock, color: 'text-slate-200', unit: '分' },
+       'speedup_troop': { key: 'speedup_troop_mins', icon: Clock, color: 'text-rose-400', unit: '分' },
+       'speedup_building': { key: 'speedup_building_mins', icon: Clock, color: 'text-amber-400', unit: '分' },
+       'speedup_research': { key: 'speedup_research_mins', icon: Clock, color: 'text-blue-400', unit: '分' },
+       'diamonds': { key: 'diamonds', icon: Gem, color: 'text-indigo-400', unit: '個' },
+       'hammer': { key: 'hammer', icon: Hammer, color: 'text-amber-500', unit: '個' },
+       'hero_shards': { key: 'hero_shards', icon: Hexagon, color: 'text-purple-400', unit: '個' },
+       'wild_beast': { key: 'stamina', icon: Swords, color: 'text-slate-200', unit: '体力' },
     };
 
-    // Processing Order: Specific items first, then versatile ones
-    // 1. Basic Resources
-    simulateResourceSpend('diamonds', ['diamonds'], 'ダイヤ消費', Gem, 'text-indigo-400', '個');
-    simulateResourceSpend('hammer', ['hammer'], 'ハンマー', Hammer, 'text-amber-500', '個');
-    simulateResourceSpend('hero_shards', ['hero_shards'], '英雄の欠片', Hexagon, 'text-purple-400', '個');
-    simulateResourceSpend('stamina', ['wild_beast'], '野獣討伐(ソロ)', Swords, 'text-slate-200', '体力');
+    MOBILIZATION_QUESTS.forEach(q => {
+       const info = mapTypeToResource[q.type];
+       if (!info) return;
 
-    // 2. Speedups
-    simulateResourceSpend('speedup_troop_mins', ['speedup_troop'], '兵士加速(専用)', Clock, 'text-rose-400', '分');
-    simulateResourceSpend('speedup_building_mins', ['speedup_building'], '建築加速(専用)', Clock, 'text-amber-400', '分');
-    simulateResourceSpend('speedup_research_mins', ['speedup_research'], '研究加速(専用)', Clock, 'text-blue-400', '分');
-    simulateResourceSpend('speedup_general_mins', ['speedup_general'], '一般加速(万能)', Clock, 'text-slate-200', '分');
+       q.variants.forEach(v => {
+          variants.push({
+             type: q.type,
+             questLabel: q.label,
+             rank: v.rank,
+             cost: v.cost,
+             points: v.points,
+             resourceKey: info.key,
+             icon: info.icon,
+             color: info.color,
+             unit: info.unit,
+             efficiency: v.cost / v.points // Lower is better resource efficiency (Blue)
+          });
+       });
+    });
 
-    return { totalPoints, totalQuests, breakdown, remaining, strategyMode, potentialQuests };
-  }, [inventory, targetQuests, strategyPreference]);
+    return variants;
+  }, []);
+
+  // --- CORE ALGORITHM: Simulation ---
+  const calculatePlan = (target: number, currentInventory: Inventory) => {
+      // 1. Group variants by Type (e.g. "Building Speedup")
+      const groupedVariants: Record<string, QuestVariant[]> = {};
+      availableQuestVariants.forEach(v => {
+          if (!groupedVariants[v.type]) groupedVariants[v.type] = [];
+          groupedVariants[v.type].push(v);
+      });
+      
+      // Sort each group by Points ASC (Blue -> Purple -> Yellow)
+      Object.keys(groupedVariants).forEach(key => {
+          groupedVariants[key].sort((a, b) => a.points - b.points);
+      });
+
+      // 2. Initial Pass: Fill with Cheapest (Blue) to ensure we hit Target count
+      let selectedQuests: QuestVariant[] = [];
+      let tempInv = { ...currentInventory };
+      
+      // Helper to check/deduct cost
+      const canAfford = (v: QuestVariant, inv: Inventory): boolean => {
+          let needed = v.cost;
+          let available = inv[v.resourceKey];
+          
+          // Speedup Logic: Use specific first, then general
+          if (v.type.startsWith('speedup_') && v.type !== 'speedup_general') {
+              if (available >= needed) return true;
+              needed -= available;
+              return inv.speedup_general_mins >= needed;
+          }
+          return available >= needed;
+      };
+
+      const deduct = (v: QuestVariant, inv: Inventory) => {
+          let needed = v.cost;
+          
+          if (v.type.startsWith('speedup_') && v.type !== 'speedup_general') {
+             const specific = inv[v.resourceKey];
+             const usedSpecific = Math.min(specific, needed);
+             inv[v.resourceKey] -= usedSpecific;
+             needed -= usedSpecific;
+             if (needed > 0) {
+                 inv.speedup_general_mins -= needed;
+             }
+          } else {
+             inv[v.resourceKey] -= needed;
+          }
+      };
+      
+      // Greedy Fill for Count (Prioritize Cheapest globally)
+      // Flatten all affordable options? No, just iterative.
+      // We want to reach Target.
+      
+      while (selectedQuests.length < target) {
+          // Find the absolute most resource-efficient quest available across ALL types
+          // Efficiency = cost relative to type? 
+          // Actually, cost scales are different (Diamonds vs Minutes).
+          // Heuristic: Just pick the cheapest available variant of ANY type.
+          
+          let bestCandidate: QuestVariant | null = null;
+          let bestCandidateCostRatio = Infinity; // Normalize? Hard.
+          
+          // Simple Approach: Iterate all types, pick the "Lowest Rank" available quest.
+          // If multiple lowest ranks, arbitrary?
+          
+          // Let's iterate all Quest Types. For each type, see if we can afford the *cheapest* variant.
+          // Collect all affordable cheapest variants. Pick one.
+          // To ensure diversity, maybe round robin? Or just bulk.
+          // Actually, we want to save high-value resources for upgrades.
+          // Let's prioritize spending Stamina/Items before Speedups if possible?
+          // For now, let's just find *any* affordable cheapest variant.
+          
+          let candidates: QuestVariant[] = [];
+          
+          Object.values(groupedVariants).forEach(variants => {
+              // The first one is the cheapest (Blue)
+              const cheap = variants[0];
+              if (canAfford(cheap, tempInv)) {
+                  candidates.push(cheap);
+              }
+          });
+
+          if (candidates.length === 0) break; // Cannot afford anything more
+          
+          // Pick one. Strategy: Use types that have the most "spare" capacity?
+          // Simplest: Just pick the first one found.
+          // Better: Pick the one that yields the least points? (Since we want to upgrade later)
+          // Actually, all cheapest are usually Blue.
+          const chosen = candidates[0]; 
+          deduct(chosen, tempInv);
+          selectedQuests.push(chosen);
+      }
+      
+      const maxReachedCount = selectedQuests.length;
+
+      // 3. Optimization Pass: Upgrade to maximize Points
+      // We have `selectedQuests` (mostly Blue). 
+      // We have `tempInv` (remaining resources).
+      // Try to "Upgrade" each selected quest to a higher tier variant of the SAME type.
+      
+      // Sort selected quests by current points ASC (try to upgrade Blues first)
+      selectedQuests.sort((a, b) => a.points - b.points);
+
+      // We need to reconstruct the list because we might change items.
+      // Actually, we can just iterate and swap in place if affordable.
+      
+      for (let i = 0; i < selectedQuests.length; i++) {
+          const current = selectedQuests[i];
+          const variants = groupedVariants[current.type];
+          
+          // Find higher tier variants
+          // Variants are sorted by points ASC.
+          // Try from highest (Yellow) down to current.
+          for (let j = variants.length - 1; j >= 0; j--) {
+              const upgrade = variants[j];
+              if (upgrade.points <= current.points) break; // No better than current
+              
+              // Calculate cost difference
+              const costDiff = upgrade.cost - current.cost;
+              
+              // Check if we can afford the difference
+              // This implies temporarily refunding current and checking upgrade
+              // Refund
+              const refundInv = { ...tempInv };
+              
+              // Refund Logic (Simplified: Add back to primary resource. 
+              // If it was split speedup, it's tricky to know where it came from.
+              // Conservative: Add back to primary key.
+              // Wait, `deduct` modifies `tempInv` in place.
+              // To check "Upgrade", we need: Available + CurrentCost >= UpgradeCost.
+              
+              // Let's do a strict check:
+              // Refund current cost conceptually
+              // Checking:
+              let availablePrimary = tempInv[current.resourceKey] + (current.type.startsWith('speedup_') && current.type!=='speedup_general' ? 0 : current.cost); 
+              // Note: Speedup refund is messy because we don't track how much general was used.
+              // WORKAROUND: We iterate upgrades. If we afford Yellow, swap.
+              
+              // Robust Check:
+              // 1. Create a temp inventory state as if we hadn't bought 'current'
+              // Since we don't track history, let's just try to buy 'upgrade' using 'tempInv'. 
+              // If we can't, check if 'tempInv + current.cost' can buy 'upgrade'.
+              
+              // Let's use the `costDiff` approach.
+              // If upgrade.cost > current.cost, we need to spend `diff`.
+              // Can we afford `diff`?
+              
+              const diff = upgrade.cost - current.cost;
+              // Mock object for "canAfford"
+              // We need to construct a fake variant representing the Diff
+              const diffVariant = { ...upgrade, cost: diff };
+              
+              if (canAfford(diffVariant, tempInv)) {
+                  // Execute Upgrade
+                  deduct(diffVariant, tempInv);
+                  selectedQuests[i] = upgrade; // Swap
+                  break; // Move to next quest
+              }
+          }
+      }
+
+      // Calculate totals
+      const totalPoints = selectedQuests.reduce((sum, q) => sum + q.points, 0);
+      
+      // Generate Breakdown
+      const breakdown: BreakdownItem[] = [];
+      const groupedResult: Record<string, { count: number, points: number, details: string[], icon: any, color: string, label: string }> = {};
+      
+      selectedQuests.forEach(q => {
+          if (!groupedResult[q.resourceKey]) {
+              groupedResult[q.resourceKey] = { 
+                  count: 0, 
+                  points: 0, 
+                  details: [], 
+                  icon: q.icon, 
+                  color: q.color, 
+                  label: q.questLabel.split('(')[0] // Simple label
+              };
+          }
+          groupedResult[q.resourceKey].count++;
+          groupedResult[q.resourceKey].points += q.points;
+          groupedResult[q.resourceKey].details.push(q.rank);
+      });
+
+      Object.entries(groupedResult).forEach(([key, data]) => {
+          // Compress details (e.g., "黄, 黄, 青" -> "黄x2, 青x1")
+          const counts = data.details.reduce((acc, curr) => { acc[curr] = (acc[curr]||0)+1; return acc; }, {} as Record<string, number>);
+          const detailStr = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1]) // Sort by count desc
+            .map(([rank, count]) => `${rank}×${count}`)
+            .join(', ');
+
+          breakdown.push({
+              id: key,
+              label: data.label, // Simplified label
+              questCount: data.count,
+              points: data.points,
+              details: [detailStr],
+              icon: data.icon,
+              color: data.color
+          });
+      });
+
+      return { totalPoints, totalQuests: maxReachedCount, breakdown, remaining: tempInv };
+  };
+
+  // --- MAIN SIMULATION ---
+  const simulation = useMemo(() => {
+      return calculatePlan(targetQuests, inventory);
+  }, [inventory, targetQuests]);
+
+  // --- SUGGESTION LOGIC ---
+  const suggestion = useMemo(() => {
+      // 1. If we couldn't hit current target, no suggestion to increase.
+      if (simulation.totalQuests < targetQuests) return null;
+
+      // 2. Simulate for MAX cap (69)
+      if (targetQuests >= 69) return null;
+
+      const maxPlan = calculatePlan(69, inventory);
+      
+      // 3. Logic: If MaxPlan gets significantly more points than CurrentPlan
+      // AND MaxPlan count is higher than CurrentPlan count
+      // Suggest it.
+      
+      if (maxPlan.totalQuests > simulation.totalQuests) {
+          const pointDiff = maxPlan.totalPoints - simulation.totalPoints;
+          const countDiff = maxPlan.totalQuests - simulation.totalQuests;
+          
+          if (pointDiff > 500) { // Arbitrary threshold: significant gain
+              return {
+                  newTarget: maxPlan.totalQuests,
+                  pointGain: pointDiff,
+                  countGain: countDiff
+              };
+          }
+      }
+      return null;
+  }, [simulation, targetQuests, inventory]);
 
 
   // --- Gap Analysis Logic ---
@@ -416,11 +630,6 @@ const MobilizationGuide: React.FC = () => {
   // --- Cost Calculation Logic (Daily Reset) ---
   const costAnalysis = useMemo(() => {
       // Calculate based on Daily Reset (6 days event)
-      // Goal: Reach 'q' total quests.
-      // Initial: 9.
-      // Added needed: q - 9.
-      // Spread over 6 days.
-      
       const q = targetQuests; // Use global target
       const INITIAL_QUESTS = 9;
       const EVENT_DAYS = 6;
@@ -451,15 +660,12 @@ const MobilizationGuide: React.FC = () => {
       const totalCost = (costPlus * remainder) + (costBase * (EVENT_DAYS - remainder));
       
       let details = [];
-      // Formatting the details for UI
       if (basePerDay > 0 || remainder > 0) {
           if (remainder === 0) {
               details.push(`1日 ${basePerDay}個追加 × ${EVENT_DAYS}日間`);
-              details.push(`(コスト: ${costBase}ダイヤ/日)`);
           } else {
-              // Mixed strategy
-              details.push(`${remainder}日間は ${basePerDay + 1}個 (日/${costPlus})`);
-              details.push(`${EVENT_DAYS - remainder}日間は ${basePerDay}個 (日/${costBase})`);
+              details.push(`${remainder}日間は ${basePerDay + 1}個`);
+              details.push(`${EVENT_DAYS - remainder}日間は ${basePerDay}個`);
           }
       }
       
@@ -529,7 +735,7 @@ const MobilizationGuide: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
 
-      {/* Inventory Inputs - Moved to Top */}
+      {/* Inventory Inputs */}
       <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-xl">
         <h3 className="text-slate-300 text-sm font-bold uppercase tracking-wider mb-6 flex items-center gap-2">
            今回のイベントでの予算を入力
@@ -541,7 +747,7 @@ const MobilizationGuide: React.FC = () => {
                 <span className="flex items-center gap-1"><Gem className="w-3 h-3" /> 基本アイテム</span>
               </div>
               <ResourceInput
-                label="使用予定ダイヤ"
+                label="ダイヤ"
                 value={inventory.diamonds}
                 onChange={v => handleInventoryChange('diamonds', v)}
                 icon={Gem} iconColor="text-indigo-400" iconBg="bg-indigo-500/20" unit="個"
@@ -569,10 +775,64 @@ const MobilizationGuide: React.FC = () => {
             <div className="space-y-3">
                  <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase mb-2">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> 加速アイテム (分)</span>
-                    <span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">一般加速は万能枠として計算</span>
+                    <label className={`
+                        flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all
+                        ${isAnalyzing 
+                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                        : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30'
+                        }
+                    `}>
+                        <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleSpeedupImageAnalysis}
+                        disabled={isAnalyzing}
+                        />
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                解析中
+                            </>
+                        ) : (
+                            <>
+                                <Camera className="w-3 h-3" />
+                                画像から自動入力
+                            </>
+                        )}
+                    </label>
                  </div>
+
+                 {/* Check Speedup Time Instruction */}
+                 <div className="mb-2">
+                    <button 
+                        onClick={() => setIsSpeedupInstructionOpen(!isSpeedupInstructionOpen)}
+                        className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition-colors w-full"
+                    >
+                        <Info className="w-3 h-3" />
+                        <span>総時間の確認方法</span>
+                        {isSpeedupInstructionOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                    
+                    {isSpeedupInstructionOpen && (
+                        <div className="mt-2 bg-slate-900/50 rounded-lg p-3 border border-white/5 animate-in slide-in-from-top-2">
+                            <div className="flex flex-wrap items-center gap-1 text-[10px] font-medium text-slate-400">
+                               <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">バッグ</span>
+                               <ArrowRight className="w-3 h-3 text-slate-600" />
+                               <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">加速</span>
+                               <ArrowRight className="w-3 h-3 text-slate-600" />
+                               <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">右上のグラフ</span>
+                               <ArrowRight className="w-3 h-3 text-slate-600" />
+                               <span className="text-amber-400">分にチェック</span>
+                            </div>
+                            <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed">
+                               ※スクショの場合は「日時分」表示のままでも自動計算されます
+                            </p>
+                        </div>
+                    )}
+                </div>
                  
-                 <TimeInput label="一般加速 (重要)" colorClass="text-purple-300" 
+                 <TimeInput label="一般加速" colorClass="text-purple-300" 
                     value={inventory.speedup_general_mins} 
                     onChange={v => setInventory(prev => ({...prev, speedup_general_mins: v}))} 
                  />
@@ -591,119 +851,14 @@ const MobilizationGuide: React.FC = () => {
             </div>
         </div>
       </div>
-
-      {/* Beginner Guide Accordion - MOVED HERE */}
-      <div className="bg-slate-800/40 border border-white/5 rounded-xl overflow-hidden">
-        <button 
-          onClick={() => setIsGuideOpen(!isGuideOpen)}
-          className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
-        >
-           <div className="flex items-center gap-2 text-slate-300 font-bold text-sm">
-             <BookOpen className="w-5 h-5 text-indigo-400" />
-             コースの選び方ガイド（初回必見）
-           </div>
-           {isGuideOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-        </button>
-        
-        {isGuideOpen && (
-          <div className="p-4 pt-0 text-sm text-slate-400 space-y-4 animate-in slide-in-from-top-2 duration-300 border-t border-white/5">
-            <div className="mt-4 grid md:grid-cols-2 gap-4">
-               {/* 33 vs 51 */}
-               <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
-                  <h4 className="text-indigo-300 font-bold mb-2 flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4" />
-                    コストの違い（ダイヤ消費）
-                  </h4>
-                  <div className="space-y-3 text-xs text-slate-400 leading-relaxed">
-                    <div>
-                      <p className="font-bold text-slate-200 mb-1">クエスト追加コストの仕組み</p>
-                      <ul className="list-disc list-inside space-y-0.5 ml-1">
-                        <li>1個目：<span className="text-emerald-400">無料</span></li>
-                        <li>2～4個目：各<span className="text-amber-400">50</span>ダイヤ</li>
-                        <li>5～7個目：各<span className="text-amber-400">200</span>ダイヤ</li>
-                        <li>8個目～：各<span className="text-rose-400">1000</span>ダイヤ <span className="text-[10px] bg-rose-900/50 text-rose-300 px-1 rounded ml-1">非推奨</span></li>
-                      </ul>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                           <p className="font-bold text-emerald-400 mb-1">33回 (節約)</p>
-                           <p>初期9 + 毎日4個×6日</p>
-                           <p className="text-[10px] text-slate-400 mt-1">コスト: 50×3×6 = <strong className="text-white">900ダイヤ</strong></p>
-                        </div>
-                        <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                           <p className="font-bold text-indigo-400 mb-1">51回 (完走)</p>
-                           <p>初期9 + 毎日7個×6日</p>
-                           <p className="text-[10px] text-slate-400 mt-1">コスト: 750×6 = <strong className="text-white">4,500ダイヤ</strong></p>
-                        </div>
-                    </div>
-                  </div>
-               </div>
-
-               {/* Why Blue? */}
-               <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50">
-                  <h4 className="text-amber-300 font-bold mb-2 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4" />
-                    自動計算のロジック & コスパ
-                  </h4>
-                  
-                  {/* NEW SECTION: Why Blue Rank is Better */}
-                  <div className="mb-4">
-                     <p className="font-bold text-blue-300 text-xs mb-1 flex items-center gap-1">
-                        <HelpCircle className="w-3 h-3" />
-                        なぜ「青ランク」がお得なのか？
-                     </p>
-                     <p className="leading-relaxed text-[10px] text-slate-400 mb-2">
-                        黄ランクは1回で大量のポイントを稼げますが、消費アイテム量が莫大です。<br/>
-                        青ランクはポイントは控えめですが、消費アイテムが非常に少なく済みます。
-                     </p>
-                     <div className="bg-slate-950 p-2 rounded border border-slate-800 grid grid-cols-2 gap-2 text-[10px] text-center">
-                        <div>
-                           <div className="text-amber-400 font-bold">黄：一般加速</div>
-                           <div className="text-slate-500">7200分で450pt</div>
-                           <div className="text-slate-300 mt-0.5 border-t border-slate-800 pt-0.5">1ptあたり16分消費</div>
-                        </div>
-                        <div className="relative overflow-hidden">
-                           <div className="absolute inset-0 bg-blue-500/10 animate-pulse"></div>
-                           <div className="relative z-10">
-                              <div className="text-blue-400 font-bold">青：一般加速</div>
-                              <div className="text-slate-500">900分で160pt</div>
-                              <div className="text-white font-bold mt-0.5 border-t border-slate-800 pt-0.5">1ptあたり5.6分消費</div>
-                           </div>
-                        </div>
-                     </div>
-                     <p className="text-[10px] text-emerald-400 mt-2 text-center">
-                        青ランクの方が圧倒的に低コストでポイントを稼げます！
-                     </p>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-white/5">
-                     <div className="bg-blue-900/20 p-2 rounded border border-blue-500/20">
-                        <div className="font-bold text-blue-300 text-xs mb-1">節約モード (青・紫優先)</div>
-                        <p className="text-[10px]">
-                           アイテムが少ない場合、コスパの良い青ランクを数多くこなして回数を稼ぎます。
-                        </p>
-                     </div>
-                     <div className="bg-amber-900/20 p-2 rounded border border-amber-500/20">
-                        <div className="font-bold text-amber-300 text-xs mb-1">圧縮モード (黄優先)</div>
-                        <p className="text-[10px]">
-                           アイテムが余っている場合、1回あたりのポイントが高い黄ランクで枠を節約します。
-                        </p>
-                     </div>
-                  </div>
-               </div>
-            </div>
-          </div>
-        )}
-      </div>
       
-      {/* Target Selector & Strategy Header - MOVED DOWN */}
+      {/* Target Selector */}
       <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-xl space-y-6">
         
         <div>
            <div className="flex items-center gap-2 mb-4">
              <Target className="w-5 h-5 text-indigo-400" />
-             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">目標クエスト回数の設定</h3>
+             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">目標クエスト回数の設定 (最大69回)</h3>
            </div>
            
            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -761,45 +916,17 @@ const MobilizationGuide: React.FC = () => {
                     <input 
                       type="number" 
                       min="9" 
-                      max="100"
+                      max="69"
                       value={targetQuests}
-                      onChange={(e) => setTargetQuests(Math.max(1, parseInt(e.target.value) || 0))}
+                      onChange={(e) => {
+                          let val = parseInt(e.target.value) || 0;
+                          val = Math.max(9, Math.min(69, val));
+                          setTargetQuests(val);
+                      }}
                       className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white font-mono font-bold text-center outline-none focus:border-indigo-500"
                     />
                     <span className="text-xs text-slate-400 shrink-0">回</span>
                  </div>
-              </div>
-           </div>
-
-           {/* Strategy Selector */}
-           <div className="pt-4 border-t border-white/5">
-              <div className="flex items-center gap-2 mb-3">
-                <Settings2 className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">優先戦略モード</h3>
-              </div>
-              <div className="flex flex-col sm:flex-row bg-slate-900/50 p-1.5 rounded-xl border border-white/5 gap-1">
-                 {[
-                   { id: 'auto', label: '自動 (推奨)', icon: Zap, color: 'text-white', activeBg: 'bg-slate-600', activeText: 'text-white' },
-                   { id: 'efficiency', label: '節約 (青優先)', icon: LayoutGrid, color: 'text-blue-400', activeBg: 'bg-blue-600', activeText: 'text-white' },
-                   { id: 'compression', label: '圧縮 (黄優先)', icon: Scale, color: 'text-amber-400', activeBg: 'bg-amber-600', activeText: 'text-white' }
-                 ].map(mode => {
-                   const isActive = strategyPreference === mode.id;
-                   const Icon = mode.icon;
-                   return (
-                     <button
-                       key={mode.id}
-                       onClick={() => setStrategyPreference(mode.id as any)}
-                       className={`flex-1 flex items-center justify-center gap-2 py-3 sm:py-2 rounded-lg text-xs font-bold transition-all ${
-                         isActive 
-                         ? `${mode.activeBg} ${mode.activeText} shadow-lg` 
-                         : `text-slate-400 hover:text-slate-200 hover:bg-white/5`
-                       }`}
-                     >
-                       <Icon className={`w-4 h-4 ${isActive ? 'text-white' : mode.color}`} />
-                       {mode.label}
-                     </button>
-                   );
-                 })}
               </div>
            </div>
         </div>
@@ -809,14 +936,10 @@ const MobilizationGuide: React.FC = () => {
               <div className="flex-1">
                  <h4 className="text-white font-bold flex items-center gap-2 mb-1">
                     <TrendingUp className="w-4 h-4 text-amber-400" />
-                    現在の目標: {targetQuests}回
+                    目標: {targetQuests}回 ／ Max 69回
                  </h4>
                  <p className="text-xs text-slate-400">
-                   {strategyPreference === 'auto' && (targetQuests > 40 
-                     ? 'アイテムが余る場合は「高得点（黄）」を優先し、足りない場合は「低コスト（青）」で回数を埋めます。' 
-                     : '無理のない範囲で、最も効率の良いクエストを選定します。')}
-                   {strategyPreference === 'efficiency' && '可能な限りコストの低い（青・紫）クエストを優先してアイテムを節約します。'}
-                   {strategyPreference === 'compression' && '可能な限り1回あたりの得点が高い（黄）クエストを優先して枠を節約します。'}
+                    現在の予算内で{targetQuests}回を達成できるように、<strong className="text-indigo-300">「青・紫・黄」を自動でミックス</strong>して最大得点を狙います。
                  </p>
               </div>
               <div className="flex items-center gap-2 text-xs bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
@@ -827,6 +950,32 @@ const MobilizationGuide: React.FC = () => {
            </div>
         </div>
       </div>
+      
+      {/* Suggestion Banner (If resource abundant) */}
+      {suggestion && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/30 p-1">
+              <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                      <div className="p-3 bg-emerald-500/20 rounded-full shrink-0 animate-pulse">
+                          <ArrowUpCircle className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                          <h4 className="text-lg font-bold text-emerald-200">目標回数の引き上げ推奨！</h4>
+                          <p className="text-sm text-slate-300 mt-1 leading-snug">
+                             現在の予算なら、<span className="text-white font-bold">{suggestion.newTarget}回</span> まで増やしても達成可能です。<br/>
+                             これにより、さらに <span className="text-amber-400 font-bold">+{suggestion.pointGain.toLocaleString()}pt</span> 獲得できます。
+                          </p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => setTargetQuests(suggestion.newTarget)}
+                    className="whitespace-nowrap px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+                  >
+                     目標を{suggestion.newTarget}回に変更
+                  </button>
+              </div>
+          </div>
+      )}
 
       <div className="space-y-6">
            
@@ -842,9 +991,11 @@ const MobilizationGuide: React.FC = () => {
                      <BarChart3 className="w-6 h-6 text-white" />
                    </div>
                    <div>
-                      <h3 className="text-white font-bold text-lg sm:text-xl whitespace-nowrap">推奨プラン ({targetQuests}回)</h3>
+                      <h3 className="text-white font-bold text-lg sm:text-xl whitespace-nowrap">最適ミックス推奨プラン</h3>
                       <p className="text-indigo-200 text-xs sm:text-sm mt-0.5">
-                        予算消化 + 不足分の補填ガイド
+                        {simulation.totalQuests >= targetQuests 
+                           ? '目標達成！ポイント最大化のためにランクを調整済' 
+                           : '予算不足により目標未達。不足分をご確認ください'}
                       </p>
                    </div>
                 </div>
@@ -855,41 +1006,6 @@ const MobilizationGuide: React.FC = () => {
                <div className="bg-[#0B1120]/30 border-t border-indigo-500/20 p-6 animate-in slide-in-from-top-2 duration-300">
                   
                     <div className="space-y-6">
-                      
-                      {/* Strategy Mode Banner */}
-                      <div className={`rounded-xl p-3 flex items-start gap-3 text-sm border ${
-                          simulation.strategyMode === 'max_score' 
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' 
-                            : 'bg-blue-500/10 border-blue-500/30 text-blue-200'
-                      }`}>
-                          {simulation.strategyMode === 'max_score' ? (
-                              <>
-                                <Scale className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
-                                <div>
-                                    <div className="font-bold text-amber-400">圧縮モード適用（アイテム豊富）</div>
-                                    <p className="text-xs opacity-80 mt-1">
-                                        {strategyPreference === 'auto' 
-                                          ? <>アイテムが十分にあるため、<strong className="underline">{targetQuests}回に収まるように高ランク（黄）クエスト</strong>を混ぜてスコアを伸ばします。</>
-                                          : <>手動選択により、<strong className="underline">高ランク（黄）クエスト</strong>を優先してスコア最大化を目指します。</>
-                                        }
-                                    </p>
-                                </div>
-                              </>
-                          ) : (
-                              <>
-                                <LayoutGrid className="w-5 h-5 shrink-0 text-blue-400 mt-0.5" />
-                                <div>
-                                    <div className="font-bold text-blue-400">節約モード適用（回数重視）</div>
-                                    <p className="text-xs opacity-80 mt-1">
-                                        {strategyPreference === 'auto'
-                                          ? <>アイテムが{targetQuests}回分より少ないため、<strong className="underline">低コスト（青・紫）クエスト</strong>を優先して回数を稼ぎます。</>
-                                          : <>手動選択により、<strong className="underline">低コスト（青・紫）クエスト</strong>を優先してアイテムを節約します。</>
-                                        }
-                                    </p>
-                                </div>
-                              </>
-                          )}
-                      </div>
 
                       {/* Top Summary Stats */}
                       <div className="grid grid-cols-2 gap-4">
@@ -900,11 +1016,11 @@ const MobilizationGuide: React.FC = () => {
                                <span className="text-sm font-normal text-slate-500">/ {targetQuests}回</span>
                             </div>
                             <div className="absolute bottom-0 left-0 h-1 bg-slate-700 w-full">
-                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{width: `${Math.min((simulation.totalQuests/targetQuests)*100, 100)}%`}}></div>
+                                <div className={`h-full transition-all duration-1000 ${simulation.totalQuests >= targetQuests ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{width: `${Math.min((simulation.totalQuests/targetQuests)*100, 100)}%`}}></div>
                             </div>
                          </div>
                          <div className="bg-slate-900/50 p-4 rounded-xl border border-white/5 flex flex-col justify-between h-full">
-                            <div className="text-xs text-slate-400 mb-1">予算での獲得P</div>
+                            <div className="text-xs text-slate-400 mb-1">獲得予定ポイント</div>
                             <div className="text-3xl font-black text-white flex items-baseline gap-1">{simulation.totalPoints.toLocaleString()} <span className="text-sm font-normal text-indigo-300">pt</span></div>
                          </div>
                       </div>
@@ -920,7 +1036,7 @@ const MobilizationGuide: React.FC = () => {
                               </h4>
                               
                               <p className="text-xs text-slate-400 mb-4 relative z-10">
-                                  以下のいずれかの方法で不足分を埋めると、{targetQuests}回を達成できます。
+                                  以下のいずれかの方法で不足分の回数を埋めると、{targetQuests}回を達成できます。
                               </p>
 
                               <div className="grid gap-3 relative z-10">
@@ -954,7 +1070,7 @@ const MobilizationGuide: React.FC = () => {
                               </div>
                               <div>
                                   <h4 className="text-emerald-200 font-bold text-lg">予算のみで目標達成可能です！</h4>
-                                  <p className="text-emerald-200/70 text-sm">追加の採取や課金は必要ありません。</p>
+                                  <p className="text-emerald-200/70 text-sm">「青」で回数を確保し、余剰分で「黄・紫」へ自動アップグレードしました。</p>
                               </div>
                           </div>
                       )}
@@ -962,7 +1078,7 @@ const MobilizationGuide: React.FC = () => {
                       {/* Breakdown List */}
                       {simulation.breakdown.length > 0 && (
                         <div className="space-y-3 pt-4 border-t border-white/10">
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">推奨クエスト内訳 ({simulation.strategyMode === 'max_score' ? '高スコア優先' : 'コスト効率優先'})</div>
+                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">推奨クエスト内訳</div>
                             {simulation.breakdown.map((item) => (
                             <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/50 p-3 rounded-lg border border-indigo-500/10">
                                 <div className="flex items-start gap-3">
@@ -1109,10 +1225,5 @@ const MobilizationGuide: React.FC = () => {
     </div>
   );
 };
-
-// Simple Icon component for the mode switch
-const LayoutGrid = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-)
 
 export default MobilizationGuide;

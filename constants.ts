@@ -96,6 +96,21 @@ export const TROOP_DATA = [
   { level: 10, name: 'エース', power: 66, trainingPoints: 1960 },
 ];
 
+// Resource Ratio Data by Soldier Level
+// Based on image data: Food is fixed at 20.00
+export const SOLDIER_RESOURCE_RATIOS = [
+  { level: 1, name: '見習い', ratios: { food: 20.00, wood: 20.00, stone: 6.67, iron: 0.00 } },
+  { level: 2, name: '一般', ratios: { food: 20.00, wood: 18.67, stone: 4.00, iron: 0.00 } },
+  { level: 3, name: '優秀', ratios: { food: 20.00, wood: 20.87, stone: 5.22, iron: 0.87 } },
+  { level: 4, name: '熟練', ratios: { food: 20.00, wood: 19.35, stone: 3.87, iron: 1.94 } },
+  { level: 5, name: '豪胆', ratios: { food: 20.00, wood: 19.50, stone: 4.00, iron: 1.50 } },
+  { level: 6, name: '勇猛', ratios: { food: 20.00, wood: 19.57, stone: 3.83, iron: 1.28 } },
+  { level: 7, name: '不屈', ratios: { food: 20.00, wood: 20.00, stone: 4.00, iron: 0.86 } },
+  { level: 8, name: '精鋭', ratios: { food: 20.00, wood: 20.00, stone: 4.14, iron: 1.00 } },
+  { level: 9, name: '名誉', ratios: { food: 20.00, wood: 20.06, stone: 4.02, iron: 1.03 } },
+  { level: 10, name: 'エース', ratios: { food: 20.00, wood: 20.00, stone: 3.99, iron: 1.00 } },
+];
+
 // Data extracted from PDF/OCR
 // Page 1: City Hall, Embassy/Institute/Warehouse, Barracks
 const cityHallData = [
@@ -211,7 +226,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'food',
     name: 'パン',
-    ratio: 20,
+    ratio: 20, // Default fallbacks if needed
     color: 'text-orange-400',
     bgColor: 'bg-orange-500',
     ringColor: 'ring-orange-500',
@@ -221,7 +236,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'wood',
     name: '木材',
-    ratio: 20,
+    ratio: 20, // Default fallbacks if needed
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500',
     ringColor: 'ring-emerald-500',
@@ -231,7 +246,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'stone',
     name: '石材',
-    ratio: 4,
+    ratio: 4, // Default fallbacks if needed
     color: 'text-slate-300',
     bgColor: 'bg-slate-500',
     ringColor: 'ring-slate-500',
@@ -241,7 +256,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'iron',
     name: '鉄鉱',
-    ratio: 1,
+    ratio: 1, // Default fallbacks if needed
     color: 'text-indigo-400',
     bgColor: 'bg-indigo-500',
     ringColor: 'ring-indigo-500',

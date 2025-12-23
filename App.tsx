@@ -51,7 +51,7 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="text-xs text-slate-500 font-medium">v0.23.6</div>
+          <div className="text-xs text-slate-500 font-medium">v0.23.7</div>
         </div>
       </header>
 
@@ -78,7 +78,7 @@ const App: React.FC = () => {
                     }`}
                  >
                    {isActive && (
-                     <span className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${tab.color}`}></span>
+                     <span className={`absolute bottom-0 left-0 right-0 h-1 rounded-b-lg ${tab.color}`}></span>
                    )}
                    <Icon className={`w-4 h-4 ${isActive ? tab.text : 'opacity-70'}`} strokeWidth={isActive ? 2.5 : 2} />
                    <span className={isActive ? 'opacity-100' : 'opacity-90'}>{tab.label}</span>
@@ -318,7 +318,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.6</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.7</p>
         </div>
       </footer>
     </div>
