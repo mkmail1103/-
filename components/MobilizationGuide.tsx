@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { MOBILIZATION_QUESTS } from '../constants';
-import { Timer, Hammer, Hexagon, Gem, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, Lock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, SlidersHorizontal, MousePointerClick, Pickaxe, CreditCard, HelpCircle, Swords, BookOpen, Lightbulb, Scale, Target, Settings2, Camera, Loader2, LayoutGrid, Info, ArrowUpCircle } from 'lucide-react';
+import { Timer, Hammer, Hexagon, Gem, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, Pickaxe, CreditCard, HelpCircle, Swords, BookOpen, Lightbulb, Target, Camera, Loader2, Info, ArrowUpCircle, Lock } from 'lucide-react';
 
 // Type definitions for user inventory
 interface Inventory {
@@ -171,6 +171,7 @@ interface BreakdownItem {
   details: string[];
   icon: any;
   color: string;
+  unit: string;
 }
 
 const MobilizationGuide: React.FC = () => {
@@ -224,6 +225,54 @@ const MobilizationGuide: React.FC = () => {
     setInventory(prev => ({ ...prev, [field]: num }));
   };
 
+  // --- Image Analysis Helper: Resize & Compress ---
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Resize to max 1024px to save bandwidth/memory while keeping text readable
+        const MAX_SIZE = 1024;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round(height * (MAX_SIZE / width));
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round(width * (MAX_SIZE / height));
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("Canvas context failed"));
+            return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Compress to JPEG 0.7 quality
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      
+      img.onerror = (err) => {
+          URL.revokeObjectURL(url);
+          reject(err);
+      };
+      
+      img.src = url;
+    });
+  };
+
   // --- Image Analysis for Speedups ---
   const handleSpeedupImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -232,27 +281,24 @@ const MobilizationGuide: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        const base64Content = base64Data.split(',')[1];
-        
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        try {
-          const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: file.type,
-                    data: base64Content
-                  }
-                },
-                {
-                  text: `Analyze this game inventory screenshot to calculate the TOTAL minutes of speed-up items.
+      // Compress image first to fix mobile issues
+      const base64Data = await compressImage(file);
+      const base64Content = base64Data.split(',')[1];
+      
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: 'image/jpeg',
+                data: base64Content
+              }
+            },
+            {
+              text: `Analyze this game inventory screenshot to calculate the TOTAL minutes of speed-up items.
 Identify items by icon and text:
 1. General Speedup (Commonly blue arrows/clock, "一般加速"): Key "speedup_general_mins"
 2. Troop/Training Speedup (Helmet/Sword/Red, "訓練加速"): Key "speedup_troop_mins"
@@ -269,37 +315,32 @@ Sum up the totals for each category.
 Return ONLY a JSON object with keys: "speedup_general_mins", "speedup_troop_mins", "speedup_building_mins", "speedup_research_mins".
 Values must be integers (total minutes). If a category is not found, do not include the key or set to null.
 `
-                }
-              ]
-            },
-            config: {
-              responseMimeType: "application/json"
             }
-          });
-          
-          const resultText = response.text;
-          if (resultText) {
-             const data = JSON.parse(resultText);
-             setInventory(prev => ({
-               ...prev,
-               speedup_general_mins: data.speedup_general_mins !== null && data.speedup_general_mins !== undefined ? data.speedup_general_mins : prev.speedup_general_mins,
-               speedup_troop_mins: data.speedup_troop_mins !== null && data.speedup_troop_mins !== undefined ? data.speedup_troop_mins : prev.speedup_troop_mins,
-               speedup_building_mins: data.speedup_building_mins !== null && data.speedup_building_mins !== undefined ? data.speedup_building_mins : prev.speedup_building_mins,
-               speedup_research_mins: data.speedup_research_mins !== null && data.speedup_research_mins !== undefined ? data.speedup_research_mins : prev.speedup_research_mins,
-             }));
-          }
-        } catch (err) {
-          console.error("AI Analysis Error:", err);
-          alert("画像の解析に失敗しました。もう一度試すか、手動で入力してください。");
-        } finally {
-          setIsAnalyzing(false);
-          // Reset input so same file can be selected again
-          e.target.value = '';
+          ]
+        },
+        config: {
+          responseMimeType: "application/json"
         }
-      };
-    } catch (error) {
-       console.error("File Processing Error:", error);
-       setIsAnalyzing(false);
+      });
+      
+      const resultText = response.text;
+      if (resultText) {
+          const data = JSON.parse(resultText);
+          setInventory(prev => ({
+            ...prev,
+            speedup_general_mins: data.speedup_general_mins !== null && data.speedup_general_mins !== undefined ? data.speedup_general_mins : prev.speedup_general_mins,
+            speedup_troop_mins: data.speedup_troop_mins !== null && data.speedup_troop_mins !== undefined ? data.speedup_troop_mins : prev.speedup_troop_mins,
+            speedup_building_mins: data.speedup_building_mins !== null && data.speedup_building_mins !== undefined ? data.speedup_building_mins : prev.speedup_building_mins,
+            speedup_research_mins: data.speedup_research_mins !== null && data.speedup_research_mins !== undefined ? data.speedup_research_mins : prev.speedup_research_mins,
+          }));
+      }
+    } catch (err) {
+      console.error("AI Analysis/Compression Error:", err);
+      alert("画像の解析に失敗しました。もう一度試すか、手動で入力してください。");
+    } finally {
+      setIsAnalyzing(false);
+      // Reset input so same file can be selected again
+      e.target.value = '';
     }
   };
 
@@ -400,12 +441,6 @@ Values must be integers (total minutes). If a category is not found, do not incl
           // Efficiency = cost relative to type? 
           // Actually, cost scales are different (Diamonds vs Minutes).
           // Heuristic: Just pick the cheapest available variant of ANY type.
-          
-          let bestCandidate: QuestVariant | null = null;
-          let bestCandidateCostRatio = Infinity; // Normalize? Hard.
-          
-          // Simple Approach: Iterate all types, pick the "Lowest Rank" available quest.
-          // If multiple lowest ranks, arbitrary?
           
           // Let's iterate all Quest Types. For each type, see if we can afford the *cheapest* variant.
           // Collect all affordable cheapest variants. Pick one.
@@ -508,7 +543,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
       
       // Generate Breakdown
       const breakdown: BreakdownItem[] = [];
-      const groupedResult: Record<string, { count: number, points: number, details: string[], icon: any, color: string, label: string }> = {};
+      const groupedResult: Record<string, { count: number, points: number, details: string[], icon: any, color: string, label: string, unit: string }> = {};
       
       selectedQuests.forEach(q => {
           if (!groupedResult[q.resourceKey]) {
@@ -518,7 +553,8 @@ Values must be integers (total minutes). If a category is not found, do not incl
                   details: [], 
                   icon: q.icon, 
                   color: q.color, 
-                  label: q.questLabel.split('(')[0] // Simple label
+                  label: q.questLabel.split('(')[0], // Simple label
+                  unit: q.unit
               };
           }
           groupedResult[q.resourceKey].count++;
@@ -541,7 +577,8 @@ Values must be integers (total minutes). If a category is not found, do not incl
               points: data.points,
               details: [detailStr],
               icon: data.icon,
-              color: data.color
+              color: data.color,
+              unit: data.unit
           });
       });
 
@@ -553,15 +590,60 @@ Values must be integers (total minutes). If a category is not found, do not incl
       return calculatePlan(targetQuests, inventory);
   }, [inventory, targetQuests]);
 
+  // --- COST CALCULATION HELPER ---
+  const calculateEventCost = (target: number) => {
+    const INITIAL_QUESTS = 9;
+    const EVENT_DAYS = 6;
+    const needed = Math.max(0, target - INITIAL_QUESTS);
+    
+    if (needed === 0) return { totalCost: 0, details: ['初期回数(9)以下なので購入不要'] };
+
+    const basePerDay = Math.floor(needed / EVENT_DAYS);
+    const remainder = needed % EVENT_DAYS;
+    
+    // Function to calculate cost for N quests in a single day
+    // Structure: 1st=0, 2-4=50, 5-7=200, 8+=1000
+    // Note: This logic assumes a specific cost structure for the event
+    const calculateDailyCost = (n: number) => {
+        let c = 0;
+        for (let i = 1; i <= n; i++) {
+            if (i === 1) c += 0;
+            else if (i <= 4) c += 50;
+            else if (i <= 7) c += 200;
+            else c += 1000;
+        }
+        return c;
+    };
+
+    const costBase = calculateDailyCost(basePerDay);
+    const costPlus = calculateDailyCost(basePerDay + 1);
+    
+    const totalCost = (costPlus * remainder) + (costBase * (EVENT_DAYS - remainder));
+    
+    let details = [];
+    if (basePerDay > 0 || remainder > 0) {
+        if (remainder === 0) {
+            details.push(`1日 ${basePerDay}個追加 × ${EVENT_DAYS}日間`);
+        } else {
+            details.push(`${remainder}日間は ${basePerDay + 1}個`);
+            details.push(`${EVENT_DAYS - remainder}日間は ${basePerDay}個`);
+        }
+    }
+    
+    return { totalCost, details };
+  };
+
   // --- SUGGESTION LOGIC ---
   const suggestion = useMemo(() => {
       // 1. If we couldn't hit current target, no suggestion to increase.
       if (simulation.totalQuests < targetQuests) return null;
 
-      // 2. Simulate for MAX cap (69)
-      if (targetQuests >= 69) return null;
+      // 2. Logic: If current target is less than 51, suggest 51.
+      // If current target is 51 or more, do not suggest higher (e.g. 69) as cost is too high.
+      if (targetQuests >= 51) return null;
 
-      const maxPlan = calculatePlan(69, inventory);
+      const NEXT_TARGET = 51;
+      const maxPlan = calculatePlan(NEXT_TARGET, inventory);
       
       // 3. Logic: If MaxPlan gets significantly more points than CurrentPlan
       // AND MaxPlan count is higher than CurrentPlan count
@@ -571,11 +653,17 @@ Values must be integers (total minutes). If a category is not found, do not incl
           const pointDiff = maxPlan.totalPoints - simulation.totalPoints;
           const countDiff = maxPlan.totalQuests - simulation.totalQuests;
           
+          // Calculate Cost Difference
+          const currentCost = calculateEventCost(targetQuests).totalCost;
+          const nextCost = calculateEventCost(NEXT_TARGET).totalCost;
+          const additionalCost = nextCost - currentCost;
+          
           if (pointDiff > 500) { // Arbitrary threshold: significant gain
               return {
-                  newTarget: maxPlan.totalQuests,
+                  newTarget: NEXT_TARGET,
                   pointGain: pointDiff,
-                  countGain: countDiff
+                  countGain: countDiff,
+                  additionalCost: additionalCost
               };
           }
       }
@@ -629,47 +717,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
 
   // --- Cost Calculation Logic (Daily Reset) ---
   const costAnalysis = useMemo(() => {
-      // Calculate based on Daily Reset (6 days event)
-      const q = targetQuests; // Use global target
-      const INITIAL_QUESTS = 9;
-      const EVENT_DAYS = 6;
-      
-      const needed = Math.max(0, q - INITIAL_QUESTS);
-      
-      if (needed === 0) return { totalCost: 0, details: ['初期回数(9)以下なので購入不要'] };
-
-      const basePerDay = Math.floor(needed / EVENT_DAYS);
-      const remainder = needed % EVENT_DAYS;
-      
-      // Function to calculate cost for N quests in a single day
-      // Structure: 1st=0, 2-4=50, 5-7=200, 8+=1000
-      const calculateDailyCost = (n: number) => {
-          let c = 0;
-          for (let i = 1; i <= n; i++) {
-              if (i === 1) c += 0;
-              else if (i <= 4) c += 50;
-              else if (i <= 7) c += 200;
-              else c += 1000;
-          }
-          return c;
-      };
-
-      const costBase = calculateDailyCost(basePerDay);
-      const costPlus = calculateDailyCost(basePerDay + 1);
-      
-      const totalCost = (costPlus * remainder) + (costBase * (EVENT_DAYS - remainder));
-      
-      let details = [];
-      if (basePerDay > 0 || remainder > 0) {
-          if (remainder === 0) {
-              details.push(`1日 ${basePerDay}個追加 × ${EVENT_DAYS}日間`);
-          } else {
-              details.push(`${remainder}日間は ${basePerDay + 1}個`);
-              details.push(`${EVENT_DAYS - remainder}日間は ${basePerDay}個`);
-          }
-      }
-      
-      return { totalCost, details };
+      return calculateEventCost(targetQuests);
   }, [targetQuests]);
 
 
@@ -851,6 +899,131 @@ Values must be integers (total minutes). If a category is not found, do not incl
             </div>
         </div>
       </div>
+
+      {/* Course Guide Section (New) */}
+      <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-xl mb-6">
+        <button 
+            onClick={() => setIsGuideOpen(!isGuideOpen)}
+            className="w-full p-4 flex items-center justify-between bg-indigo-900/20 hover:bg-indigo-900/30 transition-colors text-left group"
+        >
+            <div className="flex items-center gap-3">
+                <BookOpen className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="text-base font-bold text-white">コースの選び方ガイド（初回必見）</span>
+            </div>
+            {isGuideOpen ? <ChevronUp className="text-indigo-400 w-4 h-4" /> : <ChevronDown className="text-indigo-400 w-4 h-4" />}
+        </button>
+        
+        {isGuideOpen && (
+            <div className="p-5 border-t border-white/5 grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in slide-in-from-top-2">
+                {/* Left Panel: Cost Differences */}
+                <div className="space-y-5">
+                    <div>
+                        <div className="flex items-center gap-2 mb-2 text-indigo-300 font-bold text-sm">
+                            <Lightbulb className="w-4 h-4" />
+                            コストの違い（ダイヤ消費）
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-400 mb-2 ml-6">クエスト追加コストの仕組み</h4>
+                        <ul className="space-y-2 ml-6 text-xs text-slate-300">
+                            <li className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-slate-500"></span>
+                                <span>1個目 : <span className="text-emerald-400 font-bold">無料</span></span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-slate-500"></span>
+                                <span>2〜4個目 : 各<span className="text-amber-400 font-bold">50</span>ダイヤ</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-slate-500"></span>
+                                <span>5〜7個目 : 各<span className="text-amber-400 font-bold">200</span>ダイヤ</span>
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="w-1 h-1 rounded-full bg-slate-500"></span>
+                                <span className="flex items-center gap-2">
+                                    8個目〜 : 各<span className="text-rose-400 font-bold">1000</span>ダイヤ
+                                    <span className="text-[10px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold">非推奨</span>
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700">
+                            <div className="text-emerald-400 font-bold mb-1 text-xs">33回 (節約)</div>
+                            <div className="text-[10px] text-slate-400 mb-1">初期9 + 毎日4個×6日</div>
+                            <div className="text-[10px] text-slate-300 font-bold">コスト: 50×3×6 = <span className="text-white">900ダイヤ</span></div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-xl p-3 border border-slate-700">
+                            <div className="text-blue-400 font-bold mb-1 text-xs">51回 (完走)</div>
+                            <div className="text-[10px] text-slate-400 mb-1">初期9 + 毎日7個×6日</div>
+                            <div className="text-[10px] text-slate-300 font-bold">コスト: 750×6 = <span className="text-white">4,500ダイヤ</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Panel: Logic & CP */}
+                <div className="space-y-5">
+                    <div>
+                        <div className="flex items-center gap-2 mb-2 text-amber-400 font-bold text-sm">
+                            <TrendingUp className="w-4 h-4" />
+                            自動計算のロジック & コスパ
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-400 mb-2 ml-6 flex items-center gap-1">
+                            <HelpCircle className="w-3 h-3" /> なぜ「青ランク」がお得なのか？
+                        </h4>
+                        <p className="text-[11px] text-slate-400 ml-6 leading-relaxed mb-4">
+                            黄ランクは1回で大量のポイントを稼げますが、消費アイテム量が莫大です。<br/>
+                            青ランクはポイントは控えめですが、消費アイテムが非常に少なく済みます。
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden">
+                        <div className="grid grid-cols-2 divide-x divide-slate-800">
+                            <div className="p-3 text-center">
+                                <div className="text-yellow-500 font-bold text-xs mb-1">黄 : 一般加速</div>
+                                <div className="text-[10px] text-slate-400 mb-2">7200分で450pt</div>
+                                <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-800/50">1ptあたり16分消費</div>
+                            </div>
+                            <div className="p-3 text-center bg-blue-900/10">
+                                <div className="text-blue-400 font-bold text-xs mb-1">青 : 一般加速</div>
+                                <div className="text-[10px] text-slate-300 mb-2">900分で160pt</div>
+                                <div className="text-[10px] text-white font-bold pt-2 border-t border-slate-800/50">1ptあたり5.6分消費</div>
+                            </div>
+                        </div>
+                        <div className="bg-slate-900/50 p-2 text-center text-[10px] font-bold text-emerald-400 border-t border-slate-800">
+                            青ランクの方が圧倒的に低コストでポイントを稼げます！
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                        <div className="text-indigo-300 font-bold text-xs mb-2 flex items-center gap-2">
+                            <Calculator className="w-3 h-3" />
+                            このツールの計算手順 (最適ミックス)
+                        </div>
+                        <ul className="space-y-3">
+                            <li className="flex gap-3">
+                                <div className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0 border border-blue-500/30">1</div>
+                                <div>
+                                    <div className="text-xs font-bold text-slate-300">まずは「青ランク」で回数を確保</div>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                        最もコスパが良い青クエストを優先的に採用し、少ない予算で目標回数に到達させます。
+                                    </p>
+                                </div>
+                            </li>
+                            <li className="flex gap-3">
+                                <div className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0 border border-amber-500/30">2</div>
+                                <div>
+                                    <div className="text-xs font-bold text-slate-300">余った予算で「黄・紫」へアップグレード</div>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                        予算に余裕がある分だけ、自動的に高ポイントのクエストに入れ替えてスコアを最大化します。
+                                    </p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
       
       {/* Target Selector */}
       <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-6 shadow-xl space-y-6">
@@ -963,7 +1136,8 @@ Values must be integers (total minutes). If a category is not found, do not incl
                           <h4 className="text-lg font-bold text-emerald-200">目標回数の引き上げ推奨！</h4>
                           <p className="text-sm text-slate-300 mt-1 leading-snug">
                              現在の予算なら、<span className="text-white font-bold">{suggestion.newTarget}回</span> まで増やしても達成可能です。<br/>
-                             これにより、さらに <span className="text-amber-400 font-bold">+{suggestion.pointGain.toLocaleString()}pt</span> 獲得できます。
+                             これにより、さらに <span className="text-amber-400 font-bold">+{suggestion.pointGain.toLocaleString()}pt</span> 獲得できます。<br/>
+                             (追加コスト: <span className="font-bold text-white">{suggestion.additionalCost.toLocaleString()} ダイヤ</span>)
                           </p>
                       </div>
                   </div>
@@ -1098,6 +1272,9 @@ Values must be integers (total minutes). If a category is not found, do not incl
                                 <div className="text-right shrink-0 pl-8 sm:pl-0">
                                     <div className="text-lg font-bold text-white tabular-nums">
                                     +{item.points.toLocaleString()} pt
+                                    </div>
+                                    <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                                       残: {simulation.remaining[item.id as keyof Inventory]?.toLocaleString() ?? 0}{item.unit}
                                     </div>
                                 </div>
                             </div>
