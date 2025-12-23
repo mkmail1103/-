@@ -25,6 +25,7 @@ const App: React.FC = () => {
   };
 
   const PAST_CODES = [
+    "KINGSHOT13M",
     "STORELAUNCH"
   ];
 
@@ -51,7 +52,7 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="text-xs text-slate-500 font-medium">v0.23.7</div>
+          <div className="text-xs text-slate-500 font-medium">v0.23.8</div>
         </div>
       </header>
 
@@ -173,11 +174,11 @@ const App: React.FC = () => {
                   <h3 className="text-emerald-400 font-bold tracking-widest uppercase mb-4 text-sm">Latest Gift Code</h3>
                   <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-6">
                     <code className="text-4xl md:text-5xl font-black text-white font-mono tracking-tight bg-[#0B1120] px-6 py-3 rounded-xl border border-white/5 shadow-inner">
-                      KINGSHOT13M
+                      THEKINGSTORE
                     </code>
                   </div>
                   <button 
-                    onClick={() => handleCopyCode("KINGSHOT13M")}
+                    onClick={() => handleCopyCode("THEKINGSTORE")}
                     className={`inline-flex items-center gap-2 px-8 py-3 rounded-full font-bold text-lg transition-all active:scale-95 ${
                       isCopied 
                         ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]' 
@@ -318,7 +319,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.7</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.8</p>
         </div>
       </footer>
     </div>
