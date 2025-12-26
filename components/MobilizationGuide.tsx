@@ -243,7 +243,7 @@ const MobilizationGuide: React.FC = () => {
     setInventory(prev => ({ ...prev, [field]: num }));
   };
 
-  // --- 統計画面（資源と加速統計）専用 OCR解析ロジック（修正版） ---
+// --- 統計画面（資源と加速統計）専用 OCR解析ロジック（修正版v5: 消去法対応） ---
   const handleSpeedupImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -262,8 +262,8 @@ const MobilizationGuide: React.FC = () => {
         .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) // 全角数字→半角
         .replace(/,/g, '')       // カンマ除去
         .replace(/\s+/g, '')     // スペース・改行除去
-        .replace(/l|I|\|/g, '1') // 誤読補正
-        .replace(/O|o/g, '0');
+        .replace(/l|I|\|/g, '1') // 1の誤読補正
+        .replace(/O|o/g, '0');   // 0の誤読補正
 
       console.log("Cleaned:", cleanedText);
 
@@ -279,18 +279,17 @@ const MobilizationGuide: React.FC = () => {
         return totalMins;
       };
 
-      const targets = [
-        { key: 'speedup_general_mins', keywords: ['一般', '汎用'] },
-        { key: 'speedup_troop_mins', keywords: ['訓練'] }, 
-        { key: 'speedup_building_mins', keywords: ['建造', '建築'] },
-        { key: 'speedup_research_mins', keywords: ['研究'] },
-      ];
-
       const newValues: any = {};
       let foundCount = 0;
 
-      // 2. 解析実行
-      targets.forEach(target => {
+      // 2. まず「訓練」「建造」「研究」を特定（これらはキーワードが強いので確実）
+      const specificTargets = [
+        { key: 'speedup_troop_mins', keywords: ['訓練'] }, 
+        { key: 'speedup_building_mins', keywords: ['建造', '建築', '建設', '建', '造'] },
+        { key: 'speedup_research_mins', keywords: ['研究'] },
+      ];
+
+      specificTargets.forEach(target => {
         let index = -1;
         for (const kw of target.keywords) {
            index = cleanedText.indexOf(kw);
@@ -298,52 +297,82 @@ const MobilizationGuide: React.FC = () => {
         }
 
         if (index !== -1) {
-          // キーワード以降の文字列を取得
           const textAfterKeyword = cleanedText.substring(index);
+          // 数字+単位のセットを探す
+          const timeMatch = textAfterKeyword.match(/(\d+(?:日|時間|分))+/);
           
-          // 【重要】キーワードの後ろにある「最初の数字」を探す
-          // これにより「加速」などの文字をスキップします
-          const numberStartIndex = textAfterKeyword.search(/\d/);
-          
-          if (numberStartIndex !== -1) {
-              // 数字以降の文字列を切り出す（例: "8177分..." や "5日16時間..."）
-              const textFromNumber = textAfterKeyword.substring(numberStartIndex);
-              
-              // 先頭から「日・時間・分」のパターンにマッチさせる
-              const timeMatch = textFromNumber.match(/^(\d+日)?(\d+時間)?(\d+分)?/);
-              
-              if (timeMatch && timeMatch[0].length > 0) {
-                 const minutes = parseDurationStr(timeMatch[0]);
-                 if (minutes > 0) {
-                    newValues[target.key] = minutes; 
-                    foundCount++;
-                 }
-              }
+          if (timeMatch && timeMatch[0].length > 0) {
+             const minutes = parseDurationStr(timeMatch[0]);
+             if (minutes > 0) {
+                newValues[target.key] = minutes; 
+                foundCount++;
+             }
           }
         }
       });
 
+      // 3. 【一般加速の特定ロジック変更】
+      // 「一般」という文字を探すのではなく、「加速」という文字を探し、
+      // その直前の文字が「練」「造」「究」「療」「と」以外であれば、それを一般加速とみなす。
+      // （訓練加速、建造加速、研究加速、治療加速、資源と加速...を除外）
+      
+      const exclusionChars = ['練', '造', '築', '建', '究', '療', 'と']; // 除外する直前文字
+      const keyword = '加速';
+      
+      let searchPos = 0;
+      while (searchPos < cleanedText.length) {
+          const index = cleanedText.indexOf(keyword, searchPos);
+          if (index === -1) break; // もう「加速」がない
+
+          // 直前の文字を確認
+          const prevChar = index > 0 ? cleanedText.charAt(index - 1) : '';
+          
+          // 除外リストに含まれていなければ、これが「一般加速」の可能性大
+          if (!exclusionChars.includes(prevChar)) {
+              const textAfter = cleanedText.substring(index + keyword.length);
+              
+              // すぐ後ろに「数字+単位」があるか確認
+              // ※ タブ名の「加速」などは後ろに数字がないのでここで弾かれる
+              const timeMatch = textAfter.match(/^.*?(\d+(?:日|時間|分))+/);
+              
+              if (timeMatch) {
+                  // match結果の最初のグループが数字部分とは限らない(.*?があるため)
+                  // 数字部分だけを再抽出
+                  const realTimePart = timeMatch[0].match(/(\d+(?:日|時間|分))+/);
+                  if (realTimePart) {
+                      const minutes = parseDurationStr(realTimePart[0]);
+                      if (minutes > 0) {
+                          newValues['speedup_general_mins'] = minutes;
+                          foundCount++;
+                          break; // 一般加速が見つかったらループ終了
+                      }
+                  }
+              }
+          }
+          
+          searchPos = index + 1; // 次の「加速」を探す
+      }
+
       if (foundCount === 0) {
-        alert("画像を読み取りましたが、有効な数値が見つかりませんでした。\n画像の文字が鮮明か確認してください。\n(認識された文字: " + cleanedText.slice(0, 50) + "...)");
+        alert("数値を読み取れませんでした。\n画像の文字が鮮明か確認してください。");
       } else {
         setInventory(prev => ({
           ...prev,
           ...newValues
         }));
-        alert(`${foundCount}項目の数値を読み取りました！`);
       }
 
       await worker.terminate();
 
     } catch (err) {
       console.error("OCR Error:", err);
-      alert("解析中にエラーが発生しました。\n" + err);
+      alert("解析エラー: " + err);
     } finally {
       setIsAnalyzing(false);
       e.target.value = '';
     }
   };
-
+  
   // --- HELPER: Quest Definitions ---
   // Maps constants to a flatter structure for the algorithm
   const availableQuestVariants = useMemo(() => {
