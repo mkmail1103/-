@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Calculator from './components/Calculator';
 import ResourceManager from './components/ResourceManager';
@@ -52,7 +53,9 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="text-xs text-slate-500 font-medium">v0.23.11</div>
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.1</div>
+          </div>
         </div>
       </header>
 
@@ -319,7 +322,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.23.11</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.1</p>
         </div>
       </footer>
     </div>

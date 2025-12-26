@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { createWorker } from 'tesseract.js';
 import { RESOURCE_CONFIGS, SOLDIER_RESOURCE_RATIOS } from '../constants';
 import { ResourceType } from '../types';
 import { Calculator, AlertTriangle, TrendingDown, Scale, ArrowDown, Medal, ArrowRight, Info, ChevronDown, ChevronUp, Swords, Activity, Stethoscope, Camera, Loader2 } from 'lucide-react';
@@ -80,80 +81,103 @@ const ResourceManager: React.FC = () => {
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
 
-    const compressImage = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.onload = () => {
-                URL.revokeObjectURL(url);
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                const MAX_SIZE = 1024;
-                if (width > height) {
-                    if (width > MAX_SIZE) {
-                        height = Math.round(height * (MAX_SIZE / width));
-                        width = MAX_SIZE;
-                    }
-                } else {
-                    if (height > MAX_SIZE) {
-                        width = Math.round(width * (MAX_SIZE / height));
-                        height = MAX_SIZE;
+    // Regex parser for OCR text
+    const parseOCRText = (text: string) => {
+        const lines = text.split('\n');
+        const results: Record<string, string> = {};
+
+        // Keywords to search for (Extended)
+        const keywords: Record<ResourceType, string[]> = {
+            food: ['パン', 'ハン', 'バン', 'パソ', 'ハソ', 'バソ', 'Food', 'Meat', '肉', '食料', '糧秣', 'トマト'],
+            wood: ['木材', 'Wood', '木'],
+            stone: ['石材', 'Stone', '石'],
+            iron: ['鉄鉱', 'Iron', '鉄', '鉱']
+        };
+
+        // Helper to parse value string to number for comparison
+        const parseValue = (str: string): number => {
+            if (!str) return 0;
+            const clean = str.replace(/[^0-9\.,kKmMgG]/g, '').toLowerCase();
+            let num = parseFloat(clean.replace(/,/g, ''));
+            if (isNaN(num)) return 0;
+            if (clean.includes('k')) num *= 1000;
+            if (clean.includes('m')) num *= 1000000;
+            if (clean.includes('g')) num *= 1000000000;
+            return num;
+        };
+
+        // Helper to clean extracted value for display
+        const cleanValue = (str: string) => {
+            return str.replace(/[^0-9\.,kKmMgG]/g, '');
+        };
+
+        // Scan logic
+        Object.entries(keywords).forEach(([type, keys]) => {
+            // Find lines containing keywords
+            const matchedLineIndices = lines.map((line, idx) => keys.some(k => line.includes(k)) ? idx : -1).filter(idx => idx !== -1);
+            
+            let candidates: string[] = [];
+
+            matchedLineIndices.forEach(idx => {
+                // Check current line and next 2 lines
+                for (let i = 0; i <= 2; i++) {
+                    if (idx + i < lines.length) {
+                        // Extract patterns looking like resource numbers (e.g., 1.2M, 500k, 12,345)
+                        const matches = lines[idx + i].match(/([0-9\.,]+[kKmMgG]?)/g);
+                        if (matches) {
+                            candidates = [...candidates, ...matches];
+                        }
                     }
                 }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) { reject(new Error("Canvas context failed")); return; }
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
-            };
-            img.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
-            img.src = url;
+            });
+
+            // If candidates found, pick the one with the largest value (Assume Total Resource is the largest number shown)
+            if (candidates.length > 0) {
+                let bestMatch = '';
+                let maxValue = -1;
+
+                candidates.forEach(cand => {
+                    // Filter out purely small integers that look like counts (e.g., "1", "50") unless they have suffixes or are very large
+                    const val = parseValue(cand);
+                    if (val > maxValue) {
+                        maxValue = val;
+                        bestMatch = cand;
+                    }
+                });
+
+                if (bestMatch) {
+                    results[type] = cleanValue(bestMatch);
+                }
+            }
         });
+
+        return results;
     };
 
     const handleImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setIsAnalyzing(true);
+        
         try {
-            const base64Data = await compressImage(file);
-            const base64Content = base64Data.split(',')[1];
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: {
-                    parts: [
-                        { inlineData: { mimeType: 'image/jpeg', data: base64Content } },
-                        { text: `Analyze this game screenshot to extract the Total Resources amounts.
-Look specifically for:
-1. Food/Bread (パン)
-2. Wood (木材)
-3. Stone (石材)
-4. Iron (鉄鉱)
-
-Ignore capacity limits or hourly production rates. I need the current owned amount.
-Return ONLY a JSON object with keys: "food", "wood", "stone", "iron".
-The values should be STRINGS exactly as they appear in the image (e.g., "551.45M", "100K"). Do not convert "M" or "K" to zeros. If a resource is not visible, use null.` }
-                    ]
-                },
-                config: { responseMimeType: "application/json" }
-            });
-            const resultText = response.text;
-            if (resultText) {
-                const data = JSON.parse(resultText);
-                setHoldings(prev => ({
-                    ...prev,
-                    food: data.food !== null && data.food !== undefined ? String(data.food) : prev.food,
-                    wood: data.wood !== null && data.wood !== undefined ? String(data.wood) : prev.wood,
-                    stone: data.stone !== null && data.stone !== undefined ? String(data.stone) : prev.stone,
-                    iron: data.iron !== null && data.iron !== undefined ? String(data.iron) : prev.iron,
-                }));
-            }
+            const worker = await createWorker('jpn'); // Load Japanese model
+            const ret = await worker.recognize(file);
+            const text = ret.data.text;
+            
+            const extracted = parseOCRText(text);
+            
+            setHoldings(prev => ({
+                ...prev,
+                food: extracted.food || prev.food,
+                wood: extracted.wood || prev.wood,
+                stone: extracted.stone || prev.stone,
+                iron: extracted.iron || prev.iron,
+            }));
+            
+            await worker.terminate();
         } catch (err) {
-            console.error("AI Analysis Error:", err);
-            alert("画像の解析に失敗しました。もう一度試すか、手動で入力してください。");
+            console.error("OCR Error:", err);
+            alert("文字の読み取りに失敗しました。画像が鮮明か確認してください。");
         } finally {
             setIsAnalyzing(false);
             e.target.value = '';
@@ -236,7 +260,7 @@ The values should be STRINGS exactly as they appear in the image (e.g., "551.45M
                             </h3>
                             <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${isAnalyzing ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30'}`}>
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageAnalysis} disabled={isAnalyzing} />
-                                {isAnalyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />解析中...</> : <><Camera className="w-3.5 h-3.5" />画像から自動入力</>}
+                                {isAnalyzing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />解析中 (OCR)</> : <><Camera className="w-3.5 h-3.5" />画像から自動入力</>}
                             </label>
                         </div>
                         <div className="mb-6">
@@ -252,6 +276,7 @@ The values should be STRINGS exactly as they appear in the image (e.g., "551.45M
                                         <ArrowRight className="w-3 h-3 rotate-90 sm:rotate-0" />
                                         <span className="text-amber-400">スクショまたは入力</span>
                                     </div>
+                                    <p className="text-[10px] text-slate-500 mt-2">※OCR解析のため、画像内の文字がはっきり見えるようにしてください。</p>
                                 </div>
                             )}
                         </div>

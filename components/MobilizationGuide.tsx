@@ -1,7 +1,20 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { createWorker } from 'tesseract.js';
 import { MOBILIZATION_QUESTS } from '../constants';
-import { Timer, Hammer, Hexagon, Gem, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, Pickaxe, CreditCard, HelpCircle, Swords, BookOpen, Lightbulb, Target, Camera, Loader2, Info, ArrowUpCircle, Lock } from 'lucide-react';
+import { 
+  IconSpeedupGeneral, 
+  IconSpeedupTroop, 
+  IconSpeedupBuilding, 
+  IconSpeedupResearch, 
+  IconDiamonds, 
+  IconHeroGear, 
+  IconHeroShards, 
+  IconWildBeast, 
+  IconGathering,
+  IconMeatBone
+} from './QuestIcons';
+import { Timer, ArrowRight, TrendingUp, AlertTriangle, CheckCircle2, Clock, ArrowDown, Zap, Calculator, ChevronDown, ChevronUp, BarChart3, Coins, Pickaxe, BookOpen, Lightbulb, Target, Camera, Loader2, Info, ArrowUpCircle, Lock, CreditCard } from 'lucide-react';
 
 // Type definitions for user inventory
 interface Inventory {
@@ -25,11 +38,13 @@ const TimeInput = ({
   label, 
   value, 
   onChange, 
+  icon: Icon,
   colorClass 
 }: { 
   label: string, 
   value: number, 
   onChange: (mins: number) => void,
+  icon: any,
   colorClass?: string
 }) => {
   const [localValue, setLocalValue] = useState(value === 0 ? '' : value.toLocaleString());
@@ -61,7 +76,10 @@ const TimeInput = ({
 
   return (
     <div className="bg-[#1E293B] border border-slate-700 rounded-xl p-3 flex items-center justify-between gap-3">
-       <label className={`block text-xs font-bold uppercase ${colorClass || 'text-slate-300'}`}>{label}</label>
+       <div className="flex items-center gap-2">
+         {Icon && <Icon className={`w-8 h-8 ${colorClass}`} />}
+         <label className={`block text-xs font-bold uppercase text-slate-300`}>{label}</label>
+       </div>
        <div className="relative w-32">
           <input 
             type="text" 
@@ -126,7 +144,7 @@ const ResourceInput = ({
   return (
     <div className="flex items-center gap-3 bg-[#1E293B] p-3 rounded-xl border border-slate-700 group hover:border-slate-500 transition-colors">
        <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center shrink-0`}>
-          <Icon className={`w-5 h-5 ${iconColor}`} />
+          <Icon className={`w-6 h-6 ${iconColor}`} />
        </div>
        <div className="flex-1">
           <label className="text-xs font-bold text-slate-400 uppercase block mb-0.5">{label}</label>
@@ -225,55 +243,7 @@ const MobilizationGuide: React.FC = () => {
     setInventory(prev => ({ ...prev, [field]: num }));
   };
 
-  // --- Image Analysis Helper: Resize & Compress ---
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        // Resize to max 1024px to save bandwidth/memory while keeping text readable
-        const MAX_SIZE = 1024;
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round(height * (MAX_SIZE / width));
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width = Math.round(width * (MAX_SIZE / height));
-            height = MAX_SIZE;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            reject(new Error("Canvas context failed"));
-            return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Compress to JPEG 0.7 quality
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-      
-      img.onerror = (err) => {
-          URL.revokeObjectURL(url);
-          reject(err);
-      };
-      
-      img.src = url;
-    });
-  };
-
-  // --- Image Analysis for Speedups ---
+  // --- Image Analysis for Speedups using Tesseract.js (OCR) ---
   const handleSpeedupImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -281,65 +251,85 @@ const MobilizationGuide: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
-      // Compress image first to fix mobile issues
-      const base64Data = await compressImage(file);
-      const base64Content = base64Data.split(',')[1];
+      const worker = await createWorker('jpn'); // Load Japanese model
+      const ret = await worker.recognize(file);
+      const text = ret.data.text;
       
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Simple OCR parsing logic (Experimental)
+      // Since OCR is unreliable for grid layouts without spatial analysis,
+      // we will try to find keywords and numbers in lines.
+      // This is a "best effort" approach compared to LLM.
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Content
-              }
-            },
-            {
-              text: `Analyze this game inventory screenshot to calculate the TOTAL minutes of speed-up items.
-Identify items by icon and text:
-1. General Speedup (Commonly blue arrows/clock, "一般加速"): Key "speedup_general_mins"
-2. Troop/Training Speedup (Helmet/Sword/Red, "訓練加速"): Key "speedup_troop_mins"
-3. Building Speedup (Hammer/Orange, "建築加速"): Key "speedup_building_mins"
-4. Research Speedup (Flask/Atom/Blue, "研究加速"): Key "speedup_research_mins"
+      let generalMins = 0;
+      let troopMins = 0;
+      let buildMins = 0;
+      let researchMins = 0;
+      
+      // Helper to parse "5分" -> 5, "1時間" -> 60
+      const parseDuration = (str: string): number => {
+          if (str.includes('時間') || str.includes('h')) {
+             const num = parseInt(str.replace(/[^0-9]/g, ''));
+             return (isNaN(num) ? 0 : num) * 60;
+          }
+          if (str.includes('分') || str.includes('m')) {
+             const num = parseInt(str.replace(/[^0-9]/g, ''));
+             return isNaN(num) ? 0 : num;
+          }
+          return 0;
+      };
 
-For each item found:
-1. Identify the time duration (e.g., "5m", "1h", "1d", "5分", "1時間").
-2. Identify the quantity owned (e.g., "x10", "Owned: 50").
-3. Calculate total minutes = duration_in_minutes * quantity.
-   (1h = 60m, 1d = 1440m)
+      // Very basic line parser - looks for lines with "加速" and time/quantity
+      const lines = text.split('\n');
+      
+      // We will try to categorize roughly.
+      lines.forEach(line => {
+          // Normalize line
+          const l = line.replace(/\s+/g, '');
+          
+          let minutes = 0;
+          let count = 1;
+          
+          // Detect Time (e.g., 5分, 1時間)
+          const timeMatch = l.match(/(\d+)(分|時間|m|h)/);
+          if (timeMatch) {
+             minutes = parseDuration(timeMatch[0]);
+          }
+          
+          // Detect Quantity (e.g., x10, x50)
+          const qtyMatch = l.match(/[x×](\d+)/);
+          if (qtyMatch) {
+             count = parseInt(qtyMatch[1]);
+          }
 
-Sum up the totals for each category.
-Return ONLY a JSON object with keys: "speedup_general_mins", "speedup_troop_mins", "speedup_building_mins", "speedup_research_mins".
-Values must be integers (total minutes). If a category is not found, do not include the key or set to null.
-`
-            }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json"
-        }
+          if (minutes > 0) {
+              const total = minutes * count;
+              if (l.includes('一般加速')) generalMins += total;
+              else if (l.includes('訓練加速')) troopMins += total;
+              else if (l.includes('建築加速')) buildMins += total;
+              else if (l.includes('研究加速')) researchMins += total;
+          }
       });
+
+      // Update state only if we found something > 0 to avoid overwriting with 0s on bad scans
+      setInventory(prev => ({
+        ...prev,
+        speedup_general_mins: generalMins > 0 ? prev.speedup_general_mins + generalMins : prev.speedup_general_mins,
+        speedup_troop_mins: troopMins > 0 ? prev.speedup_troop_mins + troopMins : prev.speedup_troop_mins,
+        speedup_building_mins: buildMins > 0 ? prev.speedup_building_mins + buildMins : prev.speedup_building_mins,
+        speedup_research_mins: researchMins > 0 ? prev.speedup_research_mins + researchMins : prev.speedup_research_mins,
+      }));
       
-      const resultText = response.text;
-      if (resultText) {
-          const data = JSON.parse(resultText);
-          setInventory(prev => ({
-            ...prev,
-            speedup_general_mins: data.speedup_general_mins !== null && data.speedup_general_mins !== undefined ? data.speedup_general_mins : prev.speedup_general_mins,
-            speedup_troop_mins: data.speedup_troop_mins !== null && data.speedup_troop_mins !== undefined ? data.speedup_troop_mins : prev.speedup_troop_mins,
-            speedup_building_mins: data.speedup_building_mins !== null && data.speedup_building_mins !== undefined ? data.speedup_building_mins : prev.speedup_building_mins,
-            speedup_research_mins: data.speedup_research_mins !== null && data.speedup_research_mins !== undefined ? data.speedup_research_mins : prev.speedup_research_mins,
-          }));
+      if (generalMins === 0 && troopMins === 0 && buildMins === 0 && researchMins === 0) {
+          alert("加速アイテムの情報を読み取れませんでした。画像内の文字（例: 「一般加速 1時間」）が鮮明か確認してください。");
       }
+
+      await worker.terminate();
+
     } catch (err) {
-      console.error("AI Analysis/Compression Error:", err);
-      alert("画像の解析に失敗しました。もう一度試すか、手動で入力してください。");
+      console.error("OCR Error:", err);
+      alert("画像の解析に失敗しました。");
     } finally {
       setIsAnalyzing(false);
-      // Reset input so same file can be selected again
       e.target.value = '';
     }
   };
@@ -350,15 +340,16 @@ Values must be integers (total minutes). If a category is not found, do not incl
     const variants: QuestVariant[] = [];
     
     // Mapping Quest Types to Resource Keys and Icons
+    // Note: IconWildBeast is still used here for the quest listing as requested
     const mapTypeToResource: Record<string, { key: keyof Inventory, icon: any, color: string, unit: string }> = {
-       'speedup_general': { key: 'speedup_general_mins', icon: Clock, color: 'text-slate-200', unit: '分' },
-       'speedup_troop': { key: 'speedup_troop_mins', icon: Clock, color: 'text-rose-400', unit: '分' },
-       'speedup_building': { key: 'speedup_building_mins', icon: Clock, color: 'text-amber-400', unit: '分' },
-       'speedup_research': { key: 'speedup_research_mins', icon: Clock, color: 'text-blue-400', unit: '分' },
-       'diamonds': { key: 'diamonds', icon: Gem, color: 'text-indigo-400', unit: '個' },
-       'hammer': { key: 'hammer', icon: Hammer, color: 'text-amber-500', unit: '個' },
-       'hero_shards': { key: 'hero_shards', icon: Hexagon, color: 'text-purple-400', unit: '個' },
-       'wild_beast': { key: 'stamina', icon: Swords, color: 'text-slate-200', unit: '体力' },
+       'speedup_general': { key: 'speedup_general_mins', icon: IconSpeedupGeneral, color: 'text-sky-400', unit: '分' },
+       'speedup_troop': { key: 'speedup_troop_mins', icon: IconSpeedupTroop, color: 'text-rose-400', unit: '分' },
+       'speedup_building': { key: 'speedup_building_mins', icon: IconSpeedupBuilding, color: 'text-amber-400', unit: '分' },
+       'speedup_research': { key: 'speedup_research_mins', icon: IconSpeedupResearch, color: 'text-blue-400', unit: '分' },
+       'diamonds': { key: 'diamonds', icon: IconDiamonds, color: 'text-cyan-400', unit: '個' },
+       'hammer': { key: 'hammer', icon: IconHeroGear, color: 'text-purple-400', unit: '個' },
+       'hero_shards': { key: 'hero_shards', icon: IconHeroShards, color: 'text-orange-400', unit: '個' },
+       'wild_beast': { key: 'stamina', icon: IconWildBeast, color: 'text-amber-700', unit: '体力' },
     };
 
     MOBILIZATION_QUESTS.forEach(q => {
@@ -432,23 +423,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
           }
       };
       
-      // Greedy Fill for Count (Prioritize Cheapest globally)
-      // Flatten all affordable options? No, just iterative.
-      // We want to reach Target.
-      
       while (selectedQuests.length < target) {
-          // Find the absolute most resource-efficient quest available across ALL types
-          // Efficiency = cost relative to type? 
-          // Actually, cost scales are different (Diamonds vs Minutes).
-          // Heuristic: Just pick the cheapest available variant of ANY type.
-          
-          // Let's iterate all Quest Types. For each type, see if we can afford the *cheapest* variant.
-          // Collect all affordable cheapest variants. Pick one.
-          // To ensure diversity, maybe round robin? Or just bulk.
-          // Actually, we want to save high-value resources for upgrades.
-          // Let's prioritize spending Stamina/Items before Speedups if possible?
-          // For now, let's just find *any* affordable cheapest variant.
-          
           let candidates: QuestVariant[] = [];
           
           Object.values(groupedVariants).forEach(variants => {
@@ -459,12 +434,8 @@ Values must be integers (total minutes). If a category is not found, do not incl
               }
           });
 
-          if (candidates.length === 0) break; // Cannot afford anything more
+          if (candidates.length === 0) break; 
           
-          // Pick one. Strategy: Use types that have the most "spare" capacity?
-          // Simplest: Just pick the first one found.
-          // Better: Pick the one that yields the least points? (Since we want to upgrade later)
-          // Actually, all cheapest are usually Blue.
           const chosen = candidates[0]; 
           deduct(chosen, tempInv);
           selectedQuests.push(chosen);
@@ -473,64 +444,20 @@ Values must be integers (total minutes). If a category is not found, do not incl
       const maxReachedCount = selectedQuests.length;
 
       // 3. Optimization Pass: Upgrade to maximize Points
-      // We have `selectedQuests` (mostly Blue). 
-      // We have `tempInv` (remaining resources).
-      // Try to "Upgrade" each selected quest to a higher tier variant of the SAME type.
-      
-      // Sort selected quests by current points ASC (try to upgrade Blues first)
       selectedQuests.sort((a, b) => a.points - b.points);
 
-      // We need to reconstruct the list because we might change items.
-      // Actually, we can just iterate and swap in place if affordable.
-      
       for (let i = 0; i < selectedQuests.length; i++) {
           const current = selectedQuests[i];
           const variants = groupedVariants[current.type];
           
-          // Find higher tier variants
-          // Variants are sorted by points ASC.
-          // Try from highest (Yellow) down to current.
           for (let j = variants.length - 1; j >= 0; j--) {
               const upgrade = variants[j];
-              if (upgrade.points <= current.points) break; // No better than current
-              
-              // Calculate cost difference
-              const costDiff = upgrade.cost - current.cost;
-              
-              // Check if we can afford the difference
-              // This implies temporarily refunding current and checking upgrade
-              // Refund
-              const refundInv = { ...tempInv };
-              
-              // Refund Logic (Simplified: Add back to primary resource. 
-              // If it was split speedup, it's tricky to know where it came from.
-              // Conservative: Add back to primary key.
-              // Wait, `deduct` modifies `tempInv` in place.
-              // To check "Upgrade", we need: Available + CurrentCost >= UpgradeCost.
-              
-              // Let's do a strict check:
-              // Refund current cost conceptually
-              // Checking:
-              let availablePrimary = tempInv[current.resourceKey] + (current.type.startsWith('speedup_') && current.type!=='speedup_general' ? 0 : current.cost); 
-              // Note: Speedup refund is messy because we don't track how much general was used.
-              // WORKAROUND: We iterate upgrades. If we afford Yellow, swap.
-              
-              // Robust Check:
-              // 1. Create a temp inventory state as if we hadn't bought 'current'
-              // Since we don't track history, let's just try to buy 'upgrade' using 'tempInv'. 
-              // If we can't, check if 'tempInv + current.cost' can buy 'upgrade'.
-              
-              // Let's use the `costDiff` approach.
-              // If upgrade.cost > current.cost, we need to spend `diff`.
-              // Can we afford `diff`?
+              if (upgrade.points <= current.points) break; 
               
               const diff = upgrade.cost - current.cost;
-              // Mock object for "canAfford"
-              // We need to construct a fake variant representing the Diff
               const diffVariant = { ...upgrade, cost: diff };
               
               if (canAfford(diffVariant, tempInv)) {
-                  // Execute Upgrade
                   deduct(diffVariant, tempInv);
                   selectedQuests[i] = upgrade; // Swap
                   break; // Move to next quest
@@ -563,16 +490,15 @@ Values must be integers (total minutes). If a category is not found, do not incl
       });
 
       Object.entries(groupedResult).forEach(([key, data]) => {
-          // Compress details (e.g., "黄, 黄, 青" -> "黄x2, 青x1")
           const counts = data.details.reduce((acc, curr) => { acc[curr] = (acc[curr]||0)+1; return acc; }, {} as Record<string, number>);
           const detailStr = Object.entries(counts)
-            .sort((a, b) => b[1] - a[1]) // Sort by count desc
+            .sort((a, b) => b[1] - a[1]) 
             .map(([rank, count]) => `${rank}×${count}`)
             .join(', ');
 
           breakdown.push({
               id: key,
-              label: data.label, // Simplified label
+              label: data.label,
               questCount: data.count,
               points: data.points,
               details: [detailStr],
@@ -602,8 +528,6 @@ Values must be integers (total minutes). If a category is not found, do not incl
     const remainder = needed % EVENT_DAYS;
     
     // Function to calculate cost for N quests in a single day
-    // Structure: 1st=0, 2-4=50, 5-7=200, 8+=1000
-    // Note: This logic assumes a specific cost structure for the event
     const calculateDailyCost = (n: number) => {
         let c = 0;
         for (let i = 1; i <= n; i++) {
@@ -635,30 +559,21 @@ Values must be integers (total minutes). If a category is not found, do not incl
 
   // --- SUGGESTION LOGIC ---
   const suggestion = useMemo(() => {
-      // 1. If we couldn't hit current target, no suggestion to increase.
       if (simulation.totalQuests < targetQuests) return null;
-
-      // 2. Logic: If current target is less than 51, suggest 51.
-      // If current target is 51 or more, do not suggest higher (e.g. 69) as cost is too high.
       if (targetQuests >= 51) return null;
 
       const NEXT_TARGET = 51;
       const maxPlan = calculatePlan(NEXT_TARGET, inventory);
       
-      // 3. Logic: If MaxPlan gets significantly more points than CurrentPlan
-      // AND MaxPlan count is higher than CurrentPlan count
-      // Suggest it.
-      
       if (maxPlan.totalQuests > simulation.totalQuests) {
           const pointDiff = maxPlan.totalPoints - simulation.totalPoints;
           const countDiff = maxPlan.totalQuests - simulation.totalQuests;
           
-          // Calculate Cost Difference
           const currentCost = calculateEventCost(targetQuests).totalCost;
           const nextCost = calculateEventCost(NEXT_TARGET).totalCost;
           const additionalCost = nextCost - currentCost;
           
-          if (pointDiff > 500) { // Arbitrary threshold: significant gain
+          if (pointDiff > 500) { 
               return {
                   newTarget: NEXT_TARGET,
                   pointGain: pointDiff,
@@ -677,7 +592,6 @@ Values must be integers (total minutes). If a category is not found, do not incl
     const current = simulation.totalQuests;
     const missing = Math.max(0, TARGET - current);
     
-    // Proposal Data (Fillers)
     const proposals = [
         {
             type: 'giant_beast',
@@ -692,7 +606,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
         {
             type: 'grind',
             label: '資源採集(3.0M)',
-            icon: Pickaxe,
+            icon: IconGathering,
             color: 'text-emerald-400',
             bg: 'bg-emerald-500/10',
             border: 'border-emerald-500/20',
@@ -727,7 +641,6 @@ Values must be integers (total minutes). If a category is not found, do not incl
     let impossibleList: any[] = [];
 
     MOBILIZATION_QUESTS.forEach(questType => {
-      // Skip filler quests for the specific list, as they are infinite
       if (['gathering', 'giant_beast', 'charge'].includes(questType.type)) return;
 
       let displayLabel = questType.label;
@@ -737,7 +650,19 @@ Values must be integers (total minutes). If a category is not found, do not incl
         let availableInv = 0;
         let isPossible = false;
         let unit = questType.unit || '分';
+        let Icon = null;
         
+        // Define Icon for listing
+        if (questType.type === 'speedup_general') Icon = IconSpeedupGeneral;
+        else if (questType.type === 'speedup_troop') Icon = IconSpeedupTroop;
+        else if (questType.type === 'speedup_building') Icon = IconSpeedupBuilding;
+        else if (questType.type === 'speedup_research') Icon = IconSpeedupResearch;
+        else if (questType.type === 'diamonds') Icon = IconDiamonds;
+        else if (questType.type === 'hammer') Icon = IconHeroGear;
+        else if (questType.type === 'hero_shards') Icon = IconHeroShards;
+        else if (questType.type === 'wild_beast') Icon = IconWildBeast;
+        else Icon = Zap;
+
         if (questType.category === 'speedup') {
              const general = inventory.speedup_general_mins;
              if (questType.type === 'speedup_troop') availableInv = inventory.speedup_troop_mins + general;
@@ -759,7 +684,8 @@ Values must be integers (total minutes). If a category is not found, do not incl
             label: displayLabel, 
             currentInv: availableInv, 
             efficiencyScore, 
-            unit 
+            unit,
+            icon: Icon
         };
 
         if (isPossible) possibleList.push(item);
@@ -792,31 +718,31 @@ Values must be integers (total minutes). If a category is not found, do not incl
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase mb-2">
-                <span className="flex items-center gap-1"><Gem className="w-3 h-3" /> 基本アイテム</span>
+                <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> 基本アイテム</span>
               </div>
               <ResourceInput
                 label="ダイヤ"
                 value={inventory.diamonds}
                 onChange={v => handleInventoryChange('diamonds', v)}
-                icon={Gem} iconColor="text-indigo-400" iconBg="bg-indigo-500/20" unit="個"
+                icon={IconDiamonds} iconColor="text-cyan-400" iconBg="bg-cyan-500/20" unit="個"
               />
               <ResourceInput
                 label="レジェンド英雄の欠片"
                 value={inventory.hero_shards}
                 onChange={v => handleInventoryChange('hero_shards', v)}
-                icon={Hexagon} iconColor="text-purple-400" iconBg="bg-purple-500/20" unit="個"
+                icon={IconHeroShards} iconColor="text-purple-400" iconBg="bg-purple-500/20" unit="個"
               />
               <ResourceInput
-                label="ハンマー"
+                label="ハンマー (英雄装備)"
                 value={inventory.hammer}
                 onChange={v => handleInventoryChange('hammer', v)}
-                icon={Hammer} iconColor="text-amber-500" iconBg="bg-amber-500/20" unit="個"
+                icon={IconHeroGear} iconColor="text-amber-500" iconBg="bg-amber-500/20" unit="個"
               />
               <ResourceInput
                 label="体力 (野獣討伐用)"
                 value={inventory.stamina}
                 onChange={v => handleInventoryChange('stamina', v)}
-                icon={Zap} iconColor="text-rose-400" iconBg="bg-rose-500/20" unit="個"
+                icon={IconMeatBone} iconColor="text-rose-400" iconBg="bg-rose-500/20" unit="個"
               />
             </div>
 
@@ -840,7 +766,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                         {isAnalyzing ? (
                             <>
                                 <Loader2 className="w-3 h-3 animate-spin" />
-                                解析中
+                                解析中(OCR)
                             </>
                         ) : (
                             <>
@@ -880,19 +806,19 @@ Values must be integers (total minutes). If a category is not found, do not incl
                     )}
                 </div>
                  
-                 <TimeInput label="一般加速" colorClass="text-purple-300" 
+                 <TimeInput label="一般加速" colorClass="text-sky-300" icon={IconSpeedupGeneral}
                     value={inventory.speedup_general_mins} 
                     onChange={v => setInventory(prev => ({...prev, speedup_general_mins: v}))} 
                  />
-                 <TimeInput label="兵士訓練加速" colorClass="text-rose-400" 
+                 <TimeInput label="兵士訓練加速" colorClass="text-rose-400" icon={IconSpeedupTroop}
                     value={inventory.speedup_troop_mins} 
                     onChange={v => setInventory(prev => ({...prev, speedup_troop_mins: v}))} 
                  />
-                 <TimeInput label="建築加速" colorClass="text-amber-400" 
+                 <TimeInput label="建築加速" colorClass="text-amber-400" icon={IconSpeedupBuilding}
                     value={inventory.speedup_building_mins} 
                     onChange={v => setInventory(prev => ({...prev, speedup_building_mins: v}))} 
                  />
-                 <TimeInput label="研究加速" colorClass="text-blue-400" 
+                 <TimeInput label="研究加速" colorClass="text-blue-400" icon={IconSpeedupResearch}
                     value={inventory.speedup_research_mins} 
                     onChange={v => setInventory(prev => ({...prev, speedup_research_mins: v}))} 
                  />
@@ -900,7 +826,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
         </div>
       </div>
 
-      {/* Course Guide Section (New) */}
+      {/* Course Guide Section */}
       <div className="bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-xl mb-6">
         <button 
             onClick={() => setIsGuideOpen(!isGuideOpen)}
@@ -968,7 +894,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                             自動計算のロジック & コスパ
                         </div>
                         <h4 className="text-xs font-bold text-slate-400 mb-2 ml-6 flex items-center gap-1">
-                            <HelpCircle className="w-3 h-3" /> なぜ「青ランク」がお得なのか？
+                            <Info className="w-3 h-3" /> なぜ「青ランク」がお得なのか？
                         </h4>
                         <p className="text-[11px] text-slate-400 ml-6 leading-relaxed mb-4">
                             黄ランクは1回で大量のポイントを稼げますが、消費アイテム量が莫大です。<br/>
@@ -992,33 +918,6 @@ Values must be integers (total minutes). If a category is not found, do not incl
                         <div className="bg-slate-900/50 p-2 text-center text-[10px] font-bold text-emerald-400 border-t border-slate-800">
                             青ランクの方が圧倒的に低コストでポイントを稼げます！
                         </div>
-                    </div>
-
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                        <div className="text-indigo-300 font-bold text-xs mb-2 flex items-center gap-2">
-                            <Calculator className="w-3 h-3" />
-                            このツールの計算手順 (最適ミックス)
-                        </div>
-                        <ul className="space-y-3">
-                            <li className="flex gap-3">
-                                <div className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold shrink-0 border border-blue-500/30">1</div>
-                                <div>
-                                    <div className="text-xs font-bold text-slate-300">まずは「青ランク」で回数を確保</div>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">
-                                        最もコスパが良い青クエストを優先的に採用し、少ない予算で目標回数に到達させます。
-                                    </p>
-                                </div>
-                            </li>
-                            <li className="flex gap-3">
-                                <div className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0 border border-amber-500/30">2</div>
-                                <div>
-                                    <div className="text-xs font-bold text-slate-300">余った予算で「黄・紫」へアップグレード</div>
-                                    <p className="text-[10px] text-slate-500 mt-0.5">
-                                        予算に余裕がある分だけ、自動的に高ポイントのクエストに入れ替えてスコアを最大化します。
-                                    </p>
-                                </div>
-                            </li>
-                        </ul>
                     </div>
                 </div>
             </div>
@@ -1124,7 +1023,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
         </div>
       </div>
       
-      {/* Suggestion Banner (If resource abundant) */}
+      {/* Suggestion Banner */}
       {suggestion && (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/30 p-1">
               <div className="bg-slate-900/40 backdrop-blur-sm rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -1218,7 +1117,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                                       <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border bg-slate-950/50 ${prop.border}`}>
                                           <div className="flex items-center gap-3">
                                               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${prop.bg}`}>
-                                                  <prop.icon className={`w-5 h-5 ${prop.color}`} />
+                                                  <prop.icon className={`w-6 h-6 ${prop.color}`} />
                                               </div>
                                               <div>
                                                   <div className={`font-bold text-sm ${prop.color}`}>{prop.label}</div>
@@ -1256,7 +1155,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                             {simulation.breakdown.map((item) => (
                             <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/50 p-3 rounded-lg border border-indigo-500/10">
                                 <div className="flex items-start gap-3">
-                                    <item.icon className={`w-5 h-5 mt-0.5 ${item.color}`} />
+                                    <item.icon className={`w-8 h-8 ${item.color}`} />
                                     <div>
                                     <div className={`text-sm font-bold ${item.color} flex items-center gap-2`}>
                                         {item.label}
@@ -1298,14 +1197,16 @@ Values must be integers (total minutes). If a category is not found, do not incl
               
               <div className="space-y-3">
                  {possible.length > 0 ? (
-                    possible.map((rec, idx) => (
+                    possible.map((rec, idx) => {
+                       const QuestIcon = rec.icon || Zap;
+                       return (
                        <div key={idx} className={`p-4 rounded-xl border flex items-center justify-between gap-4 transition-all hover:translate-x-1 ${
                           rec.rank === '青' ? 'bg-indigo-900/20 border-indigo-500/50 shadow-lg shadow-indigo-900/10' :
                           'bg-slate-800/50 border-slate-700'
                        }`}>
                           <div className="flex items-center gap-4">
                              <div className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center shrink-0 font-bold text-lg border shadow-inner ${getRankBadgeStyle(rec.rank)}`}>
-                                <span>{rec.rank}</span>
+                                <QuestIcon className="w-8 h-8" />
                              </div>
                              
                              <div>
@@ -1332,7 +1233,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                              </div>
                           </div>
                        </div>
-                    ))
+                    )})
                  ) : (
                     <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-4">
                        <CheckCircle2 className="w-12 h-12 opacity-20" />
@@ -1364,11 +1265,13 @@ Values must be integers (total minutes). If a category is not found, do not incl
               {isImpossibleOpen && (
                 <div className="px-6 pb-6 space-y-3 animate-in slide-in-from-top-2 duration-300">
                    {impossible.length > 0 ? (
-                      impossible.map((rec, idx) => (
+                      impossible.map((rec, idx) => {
+                         const QuestIcon = rec.icon || Zap;
+                         return (
                          <div key={idx} className="p-3 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-between gap-4 grayscale hover:grayscale-0 transition-all">
                             <div className="flex items-center gap-4 opacity-60">
                                <div className={`w-10 h-10 rounded flex flex-col items-center justify-center shrink-0 font-bold text-sm border ${getRankBadgeStyle(rec.rank)}`}>
-                                  <span>{rec.rank}</span>
+                                  <QuestIcon className="w-6 h-6" />
                                 </div>
                                <div>
                                   <h4 className="font-bold text-sm text-slate-400">
@@ -1388,7 +1291,7 @@ Values must be integers (total minutes). If a category is not found, do not incl
                                </div>
                             </div>
                          </div>
-                      ))
+                      )})
                    ) : (
                       <div className="text-center py-4 text-xs text-slate-600">
                          現在、予算不足のクエストはありません。
