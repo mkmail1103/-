@@ -243,7 +243,7 @@ const MobilizationGuide: React.FC = () => {
     setInventory(prev => ({ ...prev, [field]: num }));
   };
 
-  // --- Image Analysis for Speedups using Tesseract.js (OCR) ---
+  // --- 統計画面（資源と加速統計）専用 OCR解析ロジック（修正版） ---
   const handleSpeedupImageAnalysis = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -251,83 +251,93 @@ const MobilizationGuide: React.FC = () => {
     setIsAnalyzing(true);
 
     try {
-      const worker = await createWorker('jpn'); // Load Japanese model
+      const worker = await createWorker('jpn');
       const ret = await worker.recognize(file);
-      const text = ret.data.text;
+      const rawText = ret.data.text;
       
-      // Simple OCR parsing logic (Experimental)
-      // Since OCR is unreliable for grid layouts without spatial analysis,
-      // we will try to find keywords and numbers in lines.
-      // This is a "best effort" approach compared to LLM.
-      
-      let generalMins = 0;
-      let troopMins = 0;
-      let buildMins = 0;
-      let researchMins = 0;
-      
-      // Helper to parse "5分" -> 5, "1時間" -> 60
-      const parseDuration = (str: string): number => {
-          if (str.includes('時間') || str.includes('h')) {
-             const num = parseInt(str.replace(/[^0-9]/g, ''));
-             return (isNaN(num) ? 0 : num) * 60;
-          }
-          if (str.includes('分') || str.includes('m')) {
-             const num = parseInt(str.replace(/[^0-9]/g, ''));
-             return isNaN(num) ? 0 : num;
-          }
-          return 0;
+      console.log("Raw Text:", rawText);
+
+      // 1. テキストの正規化
+      const cleanedText = rawText
+        .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) // 全角数字→半角
+        .replace(/,/g, '')       // カンマ除去
+        .replace(/\s+/g, '')     // スペース・改行除去
+        .replace(/l|I|\|/g, '1') // 誤読補正
+        .replace(/O|o/g, '0');
+
+      console.log("Cleaned:", cleanedText);
+
+      // 時間変換ヘルパー
+      const parseDurationStr = (str: string): number => {
+        let totalMins = 0;
+        const days = str.match(/(\d+)日/);
+        if (days) totalMins += parseInt(days[1]) * 24 * 60;
+        const hours = str.match(/(\d+)時間/);
+        if (hours) totalMins += parseInt(hours[1]) * 60;
+        const mins = str.match(/(\d+)分/);
+        if (mins) totalMins += parseInt(mins[1]);
+        return totalMins;
       };
 
-      // Very basic line parser - looks for lines with "加速" and time/quantity
-      const lines = text.split('\n');
-      
-      // We will try to categorize roughly.
-      lines.forEach(line => {
-          // Normalize line
-          const l = line.replace(/\s+/g, '');
-          
-          let minutes = 0;
-          let count = 1;
-          
-          // Detect Time (e.g., 5分, 1時間)
-          const timeMatch = l.match(/(\d+)(分|時間|m|h)/);
-          if (timeMatch) {
-             minutes = parseDuration(timeMatch[0]);
-          }
-          
-          // Detect Quantity (e.g., x10, x50)
-          const qtyMatch = l.match(/[x×](\d+)/);
-          if (qtyMatch) {
-             count = parseInt(qtyMatch[1]);
-          }
+      const targets = [
+        { key: 'speedup_general_mins', keywords: ['一般', '汎用'] },
+        { key: 'speedup_troop_mins', keywords: ['訓練'] }, 
+        { key: 'speedup_building_mins', keywords: ['建造', '建築'] },
+        { key: 'speedup_research_mins', keywords: ['研究'] },
+      ];
 
-          if (minutes > 0) {
-              const total = minutes * count;
-              if (l.includes('一般加速')) generalMins += total;
-              else if (l.includes('訓練加速')) troopMins += total;
-              else if (l.includes('建築加速')) buildMins += total;
-              else if (l.includes('研究加速')) researchMins += total;
+      const newValues: any = {};
+      let foundCount = 0;
+
+      // 2. 解析実行
+      targets.forEach(target => {
+        let index = -1;
+        for (const kw of target.keywords) {
+           index = cleanedText.indexOf(kw);
+           if (index !== -1) break;
+        }
+
+        if (index !== -1) {
+          // キーワード以降の文字列を取得
+          const textAfterKeyword = cleanedText.substring(index);
+          
+          // 【重要】キーワードの後ろにある「最初の数字」を探す
+          // これにより「加速」などの文字をスキップします
+          const numberStartIndex = textAfterKeyword.search(/\d/);
+          
+          if (numberStartIndex !== -1) {
+              // 数字以降の文字列を切り出す（例: "8177分..." や "5日16時間..."）
+              const textFromNumber = textAfterKeyword.substring(numberStartIndex);
+              
+              // 先頭から「日・時間・分」のパターンにマッチさせる
+              const timeMatch = textFromNumber.match(/^(\d+日)?(\d+時間)?(\d+分)?/);
+              
+              if (timeMatch && timeMatch[0].length > 0) {
+                 const minutes = parseDurationStr(timeMatch[0]);
+                 if (minutes > 0) {
+                    newValues[target.key] = minutes; 
+                    foundCount++;
+                 }
+              }
           }
+        }
       });
 
-      // Update state only if we found something > 0 to avoid overwriting with 0s on bad scans
-      setInventory(prev => ({
-        ...prev,
-        speedup_general_mins: generalMins > 0 ? prev.speedup_general_mins + generalMins : prev.speedup_general_mins,
-        speedup_troop_mins: troopMins > 0 ? prev.speedup_troop_mins + troopMins : prev.speedup_troop_mins,
-        speedup_building_mins: buildMins > 0 ? prev.speedup_building_mins + buildMins : prev.speedup_building_mins,
-        speedup_research_mins: researchMins > 0 ? prev.speedup_research_mins + researchMins : prev.speedup_research_mins,
-      }));
-      
-      if (generalMins === 0 && troopMins === 0 && buildMins === 0 && researchMins === 0) {
-          alert("加速アイテムの情報を読み取れませんでした。画像内の文字（例: 「一般加速 1時間」）が鮮明か確認してください。");
+      if (foundCount === 0) {
+        alert("画像を読み取りましたが、有効な数値が見つかりませんでした。\n画像の文字が鮮明か確認してください。\n(認識された文字: " + cleanedText.slice(0, 50) + "...)");
+      } else {
+        setInventory(prev => ({
+          ...prev,
+          ...newValues
+        }));
+        alert(`${foundCount}項目の数値を読み取りました！`);
       }
 
       await worker.terminate();
 
     } catch (err) {
       console.error("OCR Error:", err);
-      alert("画像の解析に失敗しました。");
+      alert("解析中にエラーが発生しました。\n" + err);
     } finally {
       setIsAnalyzing(false);
       e.target.value = '';

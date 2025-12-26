@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import Calculator from './components/Calculator';
 import ResourceManager from './components/ResourceManager';
 import MobilizationGuide from './components/MobilizationGuide';
-import { Crown, Zap, Pickaxe, Gift, Copy, Check, ExternalLink, User, Info, Flag, History } from 'lucide-react';
+import { Crown, Zap, Pickaxe, Gift, Copy, Check, ExternalLink, User, Info, Flag, History, CalendarClock } from 'lucide-react';
 
 type ViewMode = 'speedup' | 'resource' | 'giftcode' | 'mobilization';
 
@@ -25,9 +25,15 @@ const App: React.FC = () => {
     setTimeout(() => setCopiedPastCode(null), 2000);
   };
 
-  const PAST_CODES = [
-    "KINGSHOT13M",
-    "STORELAUNCH"
+  const LATEST_CODE = {
+    code: "KINGSHOTXMAS",
+    limit: "2025年12月31日"
+  };
+
+  const OTHER_CODES = [
+    { code: "THEKINGSTORE", limit: "2026/01/05まで" },
+    { code: "KINGSHOT13M", limit: "2025/12/24まで" },
+    { code: "STORELAUNCH", limit: "期限不明" }
   ];
 
   return (
@@ -54,7 +60,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.1</div>
+            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.5</div>
           </div>
         </div>
       </header>
@@ -174,14 +180,16 @@ const App: React.FC = () => {
               <div className="relative group">
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl opacity-30 group-hover:opacity-50 blur transition duration-500"></div>
                 <div className="relative bg-[#0F172A]/80 backdrop-blur-xl rounded-2xl border border-white/10 p-8 md:p-12 shadow-2xl text-center">
-                  <h3 className="text-emerald-400 font-bold tracking-widest uppercase mb-4 text-sm">Latest Gift Code</h3>
+                  <h3 className="text-emerald-400 font-bold tracking-widest uppercase mb-4 text-sm flex items-center justify-center gap-2">
+                    <Gift className="w-4 h-4 animate-bounce" /> New Gift Code
+                  </h3>
                   <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-6">
-                    <code className="text-4xl md:text-5xl font-black text-white font-mono tracking-tight bg-[#0B1120] px-6 py-3 rounded-xl border border-white/5 shadow-inner">
-                      THEKINGSTORE
+                    <code className="text-3xl md:text-5xl font-black text-white font-mono tracking-tight bg-[#0B1120] px-6 py-4 rounded-xl border border-white/5 shadow-inner">
+                      {LATEST_CODE.code}
                     </code>
                   </div>
                   <button 
-                    onClick={() => handleCopyCode("THEKINGSTORE")}
+                    onClick={() => handleCopyCode(LATEST_CODE.code)}
                     className={`inline-flex items-center gap-2 px-8 py-3 rounded-full font-bold text-lg transition-all active:scale-95 ${
                       isCopied 
                         ? 'bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]' 
@@ -200,8 +208,9 @@ const App: React.FC = () => {
                       </>
                     )}
                   </button>
-                  <p className="text-xs text-slate-500 mt-4">
-                    ※ギフトコードの有効期限は不明です。お早めにご利用ください。
+                  <p className="text-xs text-emerald-300/80 mt-4 flex items-center justify-center gap-1.5">
+                    <CalendarClock className="w-3.5 h-3.5" />
+                    有効期限: {LATEST_CODE.limit}まで
                   </p>
                 </div>
               </div>
@@ -283,30 +292,32 @@ const App: React.FC = () => {
                  </div>
               </div>
 
-              {/* Past Codes Section */}
+              {/* Active & Past Codes Section */}
               <div className="bg-[#0F172A]/40 backdrop-blur-md rounded-2xl border border-white/5 p-6 md:p-8">
-                <h3 className="text-lg font-bold text-slate-300 mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2">
                   <History className="w-5 h-5 text-slate-500" />
-                  過去のギフトコード
+                  その他のコード一覧
                 </h3>
-                <p className="text-xs text-slate-500 mb-4 ml-7">
-                  ※有効期限は不明です。期限切れの可能性があります。
-                </p>
                 
                 <div className="grid gap-3">
-                  {PAST_CODES.map((code) => (
-                    <div key={code} className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-white/5 group hover:border-white/10 transition-colors">
-                      <code className="font-mono text-slate-300 font-bold px-2">{code}</code>
+                  {OTHER_CODES.map((item) => (
+                    <div key={item.code} className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-slate-900/40 hover:bg-slate-900/60 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2 mb-0.5">
+                           <code className="font-mono font-bold px-1 text-slate-300">{item.code}</code>
+                        </div>
+                        <div className="text-[10px] text-slate-500 pl-1">{item.limit}</div>
+                      </div>
                       <button 
-                        onClick={() => handleCopyPastCode(code)}
+                        onClick={() => handleCopyPastCode(item.code)}
                         className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                          copiedPastCode === code
+                          copiedPastCode === item.code
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : 'text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20'
                         }`}
                       >
-                        {copiedPastCode === code ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedPastCode === code ? 'コピー済' : 'コピー'}
+                        {copiedPastCode === item.code ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedPastCode === item.code ? 'コピー済' : 'コピー'}
                       </button>
                     </div>
                   ))}
@@ -322,7 +333,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.1</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.5</p>
         </div>
       </footer>
     </div>

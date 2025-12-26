@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { createWorker } from 'tesseract.js';
 import { RESOURCE_CONFIGS, SOLDIER_RESOURCE_RATIOS } from '../constants';
@@ -6,6 +5,7 @@ import { ResourceType } from '../types';
 import { Calculator, AlertTriangle, TrendingDown, Scale, ArrowDown, Medal, ArrowRight, Info, ChevronDown, ChevronUp, Swords, Activity, Stethoscope, Camera, Loader2 } from 'lucide-react';
 
 const ResourceManager: React.FC = () => {
+    // データ保存用のState
     const [holdings, setHoldings] = useState<Record<ResourceType, string>>(() => {
         try {
             const saved = localStorage.getItem('kingshot_resources');
@@ -23,6 +23,7 @@ const ResourceManager: React.FC = () => {
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+    // ローカルストレージへの保存
     useEffect(() => {
         localStorage.setItem('kingshot_resources', JSON.stringify(holdings));
     }, [holdings]);
@@ -34,6 +35,7 @@ const ResourceManager: React.FC = () => {
     const [isComposing, setIsComposing] = useState(false);
     const [isInstructionOpen, setIsInstructionOpen] = useState(false);
 
+    // 全角数字などを半角に変換
     const toHalfWidth = (str: string): string => {
         return str
             .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
@@ -41,6 +43,7 @@ const ResourceManager: React.FC = () => {
             .replace(/，/g, ',');
     };
 
+    // k/m/g の単位計算
     const parseSmartNumber = (val: string): number => {
         if (!val) return 0;
         const normalized = toHalfWidth(val);
@@ -81,75 +84,81 @@ const ResourceManager: React.FC = () => {
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
 
-    // Regex parser for OCR text
+    // ---------------------------------------------------------
+    // 【修正版】OCR解析ロジック（空行スキップ機能付き）
+    // ---------------------------------------------------------
     const parseOCRText = (text: string) => {
         const lines = text.split('\n');
         const results: Record<string, string> = {};
 
-        // Keywords to search for (Extended)
         const keywords: Record<ResourceType, string[]> = {
-            food: ['パン', 'ハン', 'バン', 'パソ', 'ハソ', 'バソ', 'Food', 'Meat', '肉', '食料', '糧秣', 'トマト'],
-            wood: ['木材', 'Wood', '木'],
-            stone: ['石材', 'Stone', '石'],
-            iron: ['鉄鉱', 'Iron', '鉄', '鉱']
+            food: ['パン','ハン','バン','パソ','ハソ','バソ', 'Bread', 'Food'],
+            wood: ['木材', 'Wood'],
+            stone: ['石材', 'Stone'],
+            iron: ['鉄鉱', 'Iron']
         };
 
-        // Helper to parse value string to number for comparison
-        const parseValue = (str: string): number => {
-            if (!str) return 0;
-            const clean = str.replace(/[^0-9\.,kKmMgG]/g, '').toLowerCase();
-            let num = parseFloat(clean.replace(/,/g, ''));
-            if (isNaN(num)) return 0;
-            if (clean.includes('k')) num *= 1000;
-            if (clean.includes('m')) num *= 1000000;
-            if (clean.includes('g')) num *= 1000000000;
-            return num;
-        };
-
-        // Helper to clean extracted value for display
         const cleanValue = (str: string) => {
-            return str.replace(/[^0-9\.,kKmMgG]/g, '');
+            // スペースを除去してから数字以外を削除
+            return str.replace(/\s/g, '').replace(/[^0-9\.,kKmMgG]/g, '');
         };
 
-        // Scan logic
-        Object.entries(keywords).forEach(([type, keys]) => {
-            // Find lines containing keywords
-            const matchedLineIndices = lines.map((line, idx) => keys.some(k => line.includes(k)) ? idx : -1).filter(idx => idx !== -1);
-            
-            let candidates: string[] = [];
+        // 数字抽出用正規表現（数字 + 任意のスペース + 単位）
+        const numRegex = /([0-9\.,]+\s?[kKmMgG]?)/g;
 
-            matchedLineIndices.forEach(idx => {
-                // Check current line and next 2 lines
-                for (let i = 0; i <= 2; i++) {
-                    if (idx + i < lines.length) {
-                        // Extract patterns looking like resource numbers (e.g., 1.2M, 500k, 12,345)
-                        const matches = lines[idx + i].match(/([0-9\.,]+[kKmMgG]?)/g);
-                        if (matches) {
-                            candidates = [...candidates, ...matches];
-                        }
+        // 木材が見つかった行番号
+        let woodLineIndex = -1;
+
+        // 1. 基本検索：キーワードのある行を探す
+        Object.entries(keywords).forEach(([type, keys]) => {
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (!keys.some(k => line.includes(k))) continue;
+
+                // その行に数字があるか
+                let valMatch = line.match(numRegex);
+
+                // その行になければ次の行も見る（スマホ改行対策）
+                if ((!valMatch || valMatch.length === 0) && i + 1 < lines.length) {
+                    const nextLine = lines[i + 1];
+                    const nextHasOtherKey = Object.values(keywords).flat().some(k => nextLine.includes(k) && !keys.includes(k));
+                    if (!nextHasOtherKey) {
+                        valMatch = nextLine.match(numRegex);
                     }
                 }
-            });
 
-            // If candidates found, pick the one with the largest value (Assume Total Resource is the largest number shown)
-            if (candidates.length > 0) {
-                let bestMatch = '';
-                let maxValue = -1;
-
-                candidates.forEach(cand => {
-                    // Filter out purely small integers that look like counts (e.g., "1", "50") unless they have suffixes or are very large
-                    const val = parseValue(cand);
-                    if (val > maxValue) {
-                        maxValue = val;
-                        bestMatch = cand;
+                if (valMatch && valMatch.length > 0) {
+                    results[type] = cleanValue(valMatch[valMatch.length - 1]);
+                    
+                    if (type === 'wood') {
+                        woodLineIndex = i;
                     }
-                });
-
-                if (bestMatch) {
-                    results[type] = cleanValue(bestMatch);
+                    break;
                 }
             }
         });
+
+        // 2. 【最強のパン救済ロジック】
+        // パンが取れておらず、木材が見つかっている場合
+        if (!results['food'] && woodLineIndex > 0) {
+            // 木材の行から、最大5行さかのぼって数字を探す
+            // これにより、間に空行やゴミ行があってもスキップしてパンの数字に到達できる
+            for (let j = 1; j <= 5; j++) {
+                const targetIndex = woodLineIndex - j;
+                if (targetIndex < 0) break; // 最初の行を超えたら終了
+
+                const targetLine = lines[targetIndex];
+                const valMatch = targetLine.match(numRegex);
+
+                if (valMatch && valMatch.length > 0) {
+                    // 数字が見つかったら即採用（これがパンのはず）
+                    results['food'] = cleanValue(valMatch[valMatch.length - 1]);
+                    console.log(`Food found by backtracking ${j} lines from Wood`);
+                    break;
+                }
+            }
+        }
 
         return results;
     };
@@ -160,7 +169,7 @@ const ResourceManager: React.FC = () => {
         setIsAnalyzing(true);
         
         try {
-            const worker = await createWorker('jpn'); // Load Japanese model
+            const worker = await createWorker('jpn');
             const ret = await worker.recognize(file);
             const text = ret.data.text;
             
@@ -183,6 +192,7 @@ const ResourceManager: React.FC = () => {
             e.target.value = '';
         }
     };
+    // ---------------------------------------------------------
 
     const standardAnalysisData = useMemo(() => {
         const data = RESOURCE_CONFIGS.map(config => {
@@ -409,7 +419,7 @@ const ResourceManager: React.FC = () => {
                                         <div key={data.id} className={`relative p-3 rounded-xl border transition-all ${isBottleneck ? 'bg-gradient-to-r from-slate-800 to-slate-800/50 border-rose-500/50' : 'bg-slate-800/30 border-slate-700/50'}`}>
                                             {isBottleneck && (
                                                 <div className="absolute -top-2 -right-2">
-                                                    <div className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg animate-pulse">ボトルネック</div>
+                                                    <div className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg animate-pulse">優先</div>
                                                 </div>
                                             )}
                                             <div className="flex justify-between items-center mb-1 relative z-10">
