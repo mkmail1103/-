@@ -8,8 +8,8 @@ import { Crown, Zap, Pickaxe, Gift, Copy, Check, ExternalLink, User, Info, Flag,
 type ViewMode = 'speedup' | 'resource' | 'giftcode' | 'mobilization';
 
 const App: React.FC = () => {
-  // Default view set to 'mobilization' as requested
-  const [view, setView] = useState<ViewMode>('mobilization');
+  // Default view set to 'speedup' as requested
+  const [view, setView] = useState<ViewMode>('speedup');
   const [isCopied, setIsCopied] = useState(false);
   const [copiedPastCode, setCopiedPastCode] = useState<string | null>(null);
 
@@ -60,7 +60,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.6</div>
+            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.8</div>
           </div>
         </div>
       </header>
@@ -70,8 +70,8 @@ const App: React.FC = () => {
         <div className="max-w-2xl mx-auto px-4">
           <div className="bg-slate-900/80 p-1.5 rounded-xl border border-white/5 flex gap-1 shadow-2xl relative overflow-hidden">
              {[
-               { id: 'mobilization', icon: Flag, label: '総動員', color: 'bg-indigo-600', text: 'text-indigo-400' },
                { id: 'speedup', icon: Zap, label: '最強領主', color: 'bg-amber-600', text: 'text-amber-400' },
+               { id: 'mobilization', icon: Flag, label: '総動員', color: 'bg-indigo-600', text: 'text-indigo-400' },
                { id: 'resource', icon: Pickaxe, label: '資源', color: 'bg-blue-600', text: 'text-blue-400' },
                { id: 'giftcode', icon: Gift, label: 'ギフコ', color: 'bg-emerald-600', text: 'text-emerald-400' },
              ].map((tab) => {
@@ -333,7 +333,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.6</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.8</p>
         </div>
       </footer>
     </div>

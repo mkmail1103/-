@@ -6,45 +6,101 @@ const createLevels = (data: number[]): { level: number; powerIncrease: number }[
   return data.map((val, idx) => ({ level: idx + 1, powerIncrease: val }));
 };
 
+// --- SCORE TABLES FOR DETAILS POPUP ---
+export const LORD_EQUIPMENT_SCORES = [
+  { rank: 'グッド', score: 1125 },
+  { rank: 'グッド (★1)', score: 1875 },
+  { rank: 'レア', score: 3000 },
+  { rank: 'レア (★1)', score: 4500 },
+  { rank: 'レア (★2)', score: 5100 },
+  { rank: 'レア (★3)', score: 5440 },
+  { rank: 'エピック', score: 3230 },
+  { rank: 'エピック (★1)', score: 3230 },
+  { rank: 'エピック (★2)', score: 3225 },
+  { rank: 'エピック (★3)', score: 3225 },
+  { rank: 'エピック T1', score: 3440 },
+  { rank: 'エピック T1 (★1)', score: 3440 },
+  { rank: 'エピック T1 (★2)', score: 4085 },
+  { rank: 'エピック T1 (★3)', score: 4085 },
+  { rank: 'レジェンド', score: 6250 },
+  { rank: 'レジェンド (★1)', score: 6250 },
+  { rank: 'レジェンド (★2)', score: 6250 },
+  { rank: 'レジェンド (★3)', score: 6250 },
+];
+
+export const LORD_GEM_SCORES = [
+  { level: 'Lv.1', score: 625 },
+  { level: 'Lv.2', score: 1250 },
+  { level: 'Lv.3', score: 3125 },
+  { level: 'Lv.4', score: 8750 },
+  { level: 'Lv.5', score: 11250 },
+  { level: 'Lv.6', score: 12500 },
+  { level: 'Lv.7', score: 12500 },
+  { level: 'Lv.8', score: 13000 },
+  { level: 'Lv.9', score: 14000 },
+  { level: 'Lv.10', score: 15000 },
+  { level: 'Lv.11', score: 16000 },
+];
+
 // --- ALLIANCE MOBILIZATION DATA ---
-// Updated to use Ranks: 黄 (Yellow), 紫 (Purple), 青 (Blue), 白 (White/Unknown)
+// Updated to use Ranks: 黄 (Yellow), 紫 (Purple), 青 (Blue) based on provided table
 export const MOBILIZATION_QUESTS = [
-  // Speedups (General, Troop, Building, Research)
+  // 1. Gathering (Updated values)
+  { type: 'gathering', label: '資源採集', category: 'gathering', unit: 'M', variants: [
+     { cost: 30, points: 240, rank: '黄', color: 'text-yellow-400' },
+     { cost: 25, points: 210, rank: '黄', color: 'text-yellow-400' },
+     { cost: 20, points: 180, rank: '紫', color: 'text-purple-400' },
+     { cost: 15, points: 150, rank: '青', color: 'text-blue-400' }, 
+     { cost: 10, points: 120, rank: '青', color: 'text-blue-400' }, 
+  ]},
+  // 2. Giant Beast (Rally)
+  { type: 'giant_beast', label: '巨獣討伐 (集結)', category: 'rally', unit: '回', variants: [
+    { cost: 10, points: 300, rank: '黄', color: 'text-yellow-400' },
+    { cost: 5, points: 200, rank: '紫', color: 'text-purple-400' },
+  ]},
+  // 3. Stamina (Wild Beast)
+  { type: 'wild_beast', label: '野獣討伐', category: 'stamina', unit: '体力', variants: [
+    { cost: 300, points: 300, rank: '黄', color: 'text-yellow-400' }, // 30 times * 10
+    { cost: 200, points: 240, rank: '紫', color: 'text-purple-400' }, // 20 times * 10
+    { cost: 150, points: 200, rank: '紫', color: 'text-purple-400' }, // 15 times * 10
+    { cost: 100, points: 160, rank: '青', color: 'text-blue-400' }, // 10 times * 10
+    { cost: 50, points: 120, rank: '青', color: 'text-blue-400' }, // 5 times * 10
+  ]},
+  // 4. Troop Training (New)
+  { type: 'training', label: '兵士訓練', category: 'training', unit: '戦力', variants: [
+    { cost: 120000, points: 430, rank: '黄', color: 'text-yellow-400' },
+    { cost: 30000, points: 210, rank: '紫', color: 'text-purple-400' },
+    { cost: 15000, points: 130, rank: '青', color: 'text-blue-400' },
+  ]},
+  // 5. Speedup General
   { type: 'speedup_general', label: '一般加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
     { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
     { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
+  // 6. Speedup Troop
   { type: 'speedup_troop', label: '兵士加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
     { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
     { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
+  // 7. Speedup Building
   { type: 'speedup_building', label: '建築加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
     { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
     { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
+  // 8. Speedup Research
   { type: 'speedup_research', label: '研究加速', category: 'speedup', variants: [
     { cost: 7200, points: 450, rank: '黄', color: 'text-yellow-400' },
     { cost: 3600, points: 300, rank: '黄', color: 'text-yellow-400' }, 
     { cost: 1800, points: 220, rank: '紫', color: 'text-purple-400' }, 
     { cost: 900, points: 160, rank: '青', color: 'text-blue-400' },
   ]},
-  // Resources / Items
-  { type: 'hammer', label: 'ハンマー消費', category: 'item', unit: '個', variants: [
-    { cost: 35, points: 550, rank: '黄', color: 'text-yellow-400' },
-    { cost: 20, points: 400, rank: '黄', color: 'text-yellow-400' },
-    { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' },
-  ]},
-  { type: 'hero_shards', label: 'レジェンド英雄の欠片', category: 'item', unit: '個', variants: [
-    { cost: 68, points: 490, rank: '黄', color: 'text-yellow-400' },
-    { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, 
-    { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, 
-  ]},
+  // 9. Diamonds
   { type: 'diamonds', label: 'ダイヤ消費', category: 'item', unit: '個', variants: [
     { cost: 50000, points: 670, rank: '黄', color: 'text-yellow-400' },
     { cost: 30000, points: 460, rank: '黄', color: 'text-yellow-400' },
@@ -52,20 +108,19 @@ export const MOBILIZATION_QUESTS = [
     { cost: 10000, points: 280, rank: '紫', color: 'text-purple-400' },
     { cost: 5000, points: 200, rank: '青', color: 'text-blue-400' },
   ]},
-  // Stamina (Wild Beast) - Original Data Restored
-  { type: 'wild_beast', label: '野獣討伐 (体力)', category: 'stamina', unit: '体力', variants: [
-    { cost: 300, points: 300, rank: '黄', color: 'text-yellow-400' },
-    { cost: 200, points: 240, rank: '紫', color: 'text-purple-400' },
-    { cost: 150, points: 200, rank: '紫', color: 'text-purple-400' },
-    { cost: 100, points: 160, rank: '青', color: 'text-blue-400' },
-    { cost: 50, points: 120, rank: '青', color: 'text-blue-400' },
+  // 10. Hammer
+  { type: 'hammer', label: 'ハンマー消費', category: 'item', unit: '個', variants: [
+    { cost: 35, points: 550, rank: '黄', color: 'text-yellow-400' },
+    { cost: 20, points: 400, rank: '黄', color: 'text-yellow-400' },
+    { cost: 10, points: 300, rank: '紫', color: 'text-purple-400' },
   ]},
-  // Giant Beast (Rally) - New Data (Free/Infinite)
-  { type: 'giant_beast', label: '巨獣討伐 (集結)', category: 'rally', unit: '回', variants: [
-    { cost: 10, points: 300, rank: '黄', color: 'text-yellow-400' },
-    { cost: 5, points: 200, rank: '紫', color: 'text-purple-400' },
+  // 11. Hero Shards
+  { type: 'hero_shards', label: 'レジェンド英雄の欠片', category: 'item', unit: '個', variants: [
+    { cost: 68, points: 490, rank: '黄', color: 'text-yellow-400' },
+    { cost: 30, points: 320, rank: '黄', color: 'text-yellow-400' }, 
+    { cost: 10, points: 200, rank: '紫', color: 'text-purple-400' }, 
   ]},
-  // Charge (Purchase) - Updated with new data
+  // 12. Charge (Purchase)
   { type: 'charge', label: 'パック購入', category: 'charge', unit: 'pt', variants: [
     { cost: 50000, points: 1050, rank: '黄', color: 'text-yellow-400' },
     { cost: 25000, points: 750, rank: '黄', color: 'text-yellow-400' },
@@ -73,13 +128,19 @@ export const MOBILIZATION_QUESTS = [
     { cost: 7500, points: 400, rank: '紫', color: 'text-purple-400' },
     { cost: 2500, points: 240, rank: '青', color: 'text-blue-400' },
   ]},
-  // Gathering - Updated with new data
-  { type: 'gathering', label: '資源採集', category: 'gathering', unit: 'M', variants: [
-     { cost: 3.0, points: 240, rank: '黄', color: 'text-yellow-400' },
-     { cost: 2.5, points: 210, rank: '黄', color: 'text-yellow-400' },
-     { cost: 2.0, points: 180, rank: '紫', color: 'text-purple-400' },
-     { cost: 1.5, points: 150, rank: '青', color: 'text-blue-400' }, 
-  ]}
+  // 13. Lord Equipment (New)
+  { type: 'lord_equip', label: '領主装備', category: 'item', unit: 'pt', variants: [
+    { cost: 8900, points: 0, rank: '黄', color: 'text-yellow-400' }, // Unknown points
+    { cost: 6000, points: 350, rank: '紫', color: 'text-purple-400' },
+    { cost: 3000, points: 250, rank: '紫', color: 'text-purple-400' },
+  ]},
+  // 14. Lord Gem (New)
+  { type: 'lord_gem', label: '領主宝石', category: 'item', unit: 'pt', variants: [
+    { cost: 4900, points: 440, rank: '黄', color: 'text-yellow-400' },
+    { cost: 2500, points: 340, rank: '紫', color: 'text-purple-400' },
+    { cost: 1200, points: 260, rank: '青', color: 'text-blue-400' },
+    { cost: 600, points: 200, rank: '青', color: 'text-blue-400' },
+  ]},
 ];
 
 // Troop Data (Level 1-10)
@@ -97,7 +158,6 @@ export const TROOP_DATA = [
 ];
 
 // Resource Ratio Data by Soldier Level
-// Based on image data: Food is fixed at 20.00
 export const SOLDIER_RESOURCE_RATIOS = [
   { level: 1, name: '見習い', ratios: { food: 20.00, wood: 20.00, stone: 6.67, iron: 0.00 } },
   { level: 2, name: '一般', ratios: { food: 20.00, wood: 18.67, stone: 4.00, iron: 0.00 } },
@@ -112,7 +172,6 @@ export const SOLDIER_RESOURCE_RATIOS = [
 ];
 
 // Data extracted from PDF/OCR
-// Page 1: City Hall, Embassy/Institute/Warehouse, Barracks
 const cityHallData = [
   2000, 1800, 2700, 3600, 5400, 8100, 11700, 11700, 11700, 17000,
   17000, 17000, 28700, 28700, 28700, 40400, 40400, 40400, 57400, 57400,
@@ -131,7 +190,6 @@ const barracksData = [
   11480, 17220, 17220, 17220, 17220, 25300, 25300, 25300, 25300, 36780
 ];
 
-// Page 2: Hospital, Command Center, Production (Bread/Wood/Stone/Iron)
 const hospitalData = [
   300, 270, 405, 540, 810, 1215, 1755, 1755, 1755, 2550,
   2550, 2550, 4305, 4305, 4305, 6060, 6060, 6060, 8610, 8610,
@@ -150,7 +208,6 @@ const productionData = [
   1148, 1722, 1722, 1722, 1722, 2530, 2530, 2530, 2530, 3678
 ];
 
-// Page 3: Defense Bureau (1-10), Infirmary/Kitchen (1-10), House/Wall/Tower (1-10)
 const defenseBureauData = [
   400, 2700, 6300, 12540, 25300, 39120, 63140, 67820, 50600, 36780
 ];
@@ -212,7 +269,6 @@ export const BUILDINGS: BuildingDefinition[] = [
   },
 ];
 
-// Common Resource Packs - Updated to the specific 6 requested
 const COMMON_PACKS = [
   { id: 'p100', value: 100, label: '100' },
   { id: 'p1k', value: 1000, label: '1K' },
@@ -226,7 +282,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'food',
     name: 'パン',
-    ratio: 20, // Default fallbacks if needed
+    ratio: 20, 
     color: 'text-orange-400',
     bgColor: 'bg-orange-500',
     ringColor: 'ring-orange-500',
@@ -236,7 +292,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'wood',
     name: '木材',
-    ratio: 20, // Default fallbacks if needed
+    ratio: 20, 
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500',
     ringColor: 'ring-emerald-500',
@@ -246,7 +302,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'stone',
     name: '石材',
-    ratio: 4, // Default fallbacks if needed
+    ratio: 4, 
     color: 'text-slate-300',
     bgColor: 'bg-slate-500',
     ringColor: 'ring-slate-500',
@@ -256,7 +312,7 @@ export const RESOURCE_CONFIGS: ResourceConfig[] = [
   {
     id: 'iron',
     name: '鉄鉱',
-    ratio: 1, // Default fallbacks if needed
+    ratio: 1, 
     color: 'text-indigo-400',
     bgColor: 'bg-indigo-500',
     ringColor: 'ring-indigo-500',
