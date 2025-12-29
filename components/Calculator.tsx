@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CalculationResult } from '../types';
 import { BUILDINGS, TROOP_DATA } from '../constants';
-import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info, Users, ChevronsUp, Gauge, Timer, CheckCircle2, Trophy } from 'lucide-react';
+import { Clock, Zap, Calculator as CalcIcon, AlertCircle, ArrowRight, TrendingUp, Hammer, FlaskConical, Swords, Info, Users, ChevronsUp, Gauge, Timer, CheckCircle2, Trophy, Microscope } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 type Mode = 'building' | 'research' | 'troop';
@@ -13,6 +13,7 @@ enum RecommendationType {
   ACCELERATE_NOW = 'ACCELERATE_NOW', // Use power event
   WAIT_FOR_SPEEDUP = 'WAIT_FOR_SPEEDUP', // Use speedup event
   WAIT_FOR_TRAINING = 'WAIT_FOR_TRAINING', // Use troop training event
+  WAIT_FOR_RESEARCH = 'WAIT_FOR_RESEARCH', // Use research event
   EQUAL = 'EQUAL'
 }
 
@@ -168,15 +169,25 @@ const Calculator: React.FC = () => {
   }, [mode, troopSubMode, troopTargetLevel, troopSourceLevel, troopCount]);
 
   // Points Multipliers
-  // Building/Research: 1 Power = 30 Points
+  // Building/Research: 1 Power = 30 Points (Standard Power Event)
   // Troop: 1 Power = 20 Points
   const eventPointsPerPower = mode === 'troop' ? 20 : 30;
+  
+  // Research Day: 1 Power = 45 Points
+  const researchPointsPerPower = 45;
+
   const speedupPointsPerMinute = 300;
 
-  // Threshold Calculation (Only relevant for Power vs Speedup comparison)
-  const thresholdMinutes = useMemo(() => {
-    return powerIncrease * (eventPointsPerPower / speedupPointsPerMinute);
-  }, [powerIncrease, eventPointsPerPower]);
+  // Threshold Calculation
+  // Standard (Power Up): 1 Power = 30 Pts. 1 Min Speedup = 300 Pts.
+  const thresholdStandard = useMemo(() => {
+    return powerIncrease * (30 / speedupPointsPerMinute);
+  }, [powerIncrease]);
+
+  // Research Day: 1 Power = 45 Pts.
+  const thresholdResearch = useMemo(() => {
+    return powerIncrease * (researchPointsPerPower / speedupPointsPerMinute);
+  }, [powerIncrease, researchPointsPerPower]);
   
   const currentTotalMinutes = useMemo(() => {
     const d = parseInt(days) || 0;
@@ -189,6 +200,7 @@ const Calculator: React.FC = () => {
   const pointsEvent1 = powerIncrease * eventPointsPerPower; // Total Power Event
   const pointsEvent2 = currentTotalMinutes * speedupPointsPerMinute; // Speedup Event
   const pointsEvent3 = trainingPointsIncrease; // Troop Training Event
+  const pointsEvent4 = (mode === 'research') ? powerIncrease * researchPointsPerPower : 0; // Research Day Event
 
   // Recommendation Logic
   let recommendation: RecommendationType = RecommendationType.EQUAL;
@@ -199,12 +211,20 @@ const Calculator: React.FC = () => {
   } else {
     // Determine winner
     let maxPoints = Math.max(pointsEvent1, pointsEvent2);
+    
     if (mode === 'troop') {
       maxPoints = Math.max(maxPoints, pointsEvent3);
     }
+    
+    if (mode === 'research') {
+      maxPoints = Math.max(maxPoints, pointsEvent4);
+    }
+    
     winningPoints = maxPoints;
 
-    if (maxPoints === pointsEvent3 && mode === 'troop') {
+    if (maxPoints === pointsEvent4 && mode === 'research') {
+      recommendation = RecommendationType.WAIT_FOR_RESEARCH;
+    } else if (maxPoints === pointsEvent3 && mode === 'troop') {
       recommendation = RecommendationType.WAIT_FOR_TRAINING;
     } else if (maxPoints === pointsEvent2) {
       recommendation = RecommendationType.WAIT_FOR_SPEEDUP;
@@ -216,6 +236,7 @@ const Calculator: React.FC = () => {
   // Efficiency Calculation (Points per Minute)
   const efficiencyEvent1 = currentTotalMinutes > 0 ? pointsEvent1 / currentTotalMinutes : 0;
   const efficiencyEvent3 = (mode === 'troop' && currentTotalMinutes > 0) ? pointsEvent3 / currentTotalMinutes : 0;
+  const efficiencyEvent4 = (mode === 'research' && currentTotalMinutes > 0) ? pointsEvent4 / currentTotalMinutes : 0;
 
   const chartData = [
     {
@@ -223,12 +244,6 @@ const Calculator: React.FC = () => {
       points: pointsEvent1,
       fill: '#fbbf24', // amber-400
       stroke: '#f59e0b',
-    },
-    {
-      name: '加速消費 (時間P)',
-      points: pointsEvent2,
-      fill: '#60a5fa', // blue-400
-      stroke: '#3b82f6',
     },
   ];
 
@@ -240,6 +255,26 @@ const Calculator: React.FC = () => {
       stroke: '#e11d48',
     });
   }
+
+  if (mode === 'research') {
+    chartData.push({
+      name: '研究の日 (戦力P)',
+      points: pointsEvent4,
+      fill: '#a855f7', // purple-500
+      stroke: '#9333ea',
+    });
+  }
+
+  // Add Speedup last to match the requested order: Power -> Research/Troop -> Speedup
+  chartData.push({
+    name: '加速消費 (時間P)',
+    points: pointsEvent2,
+    fill: '#60a5fa', // blue-400
+    stroke: '#3b82f6',
+  });
+
+  // Sort chart data descending for better readability
+  // chartData.sort((a, b) => b.points - a.points);
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => e.target.select();
   
@@ -504,9 +539,9 @@ const Calculator: React.FC = () => {
             )}
           </div>
 
-          {/* Threshold Banner (For Speedup vs Power comparison mainly) */}
+          {/* Threshold Banner (For Speedup vs Power comparison mainly, not shown in Troop Mode) */}
           {powerIncrease > 0 && mode !== 'troop' && (
-            <div className="mt-8 p-0.5 rounded-xl bg-gradient-to-r from-amber-500/50 to-blue-500/50 relative overflow-hidden group shadow-lg">
+            <div className={`mt-8 p-0.5 rounded-xl bg-gradient-to-r ${mode === 'research' ? 'from-purple-500/50 to-blue-500/50' : 'from-amber-500/50 to-blue-500/50'} relative overflow-hidden group shadow-lg`}>
               <div className="absolute inset-0 bg-white/5 blur-xl group-hover:bg-white/10 transition-colors"></div>
               <div className="relative bg-[#0F172A] rounded-[10px] p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                 
@@ -514,22 +549,45 @@ const Calculator: React.FC = () => {
                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 shrink-0">
                     <Timer className="w-5 h-5 md:w-6 md:h-6 text-white" />
                   </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">お得ライン (境目)</span>
-                      <span className="bg-slate-700 text-[10px] px-1.5 py-0.5 rounded text-slate-300 whitespace-nowrap hidden sm:inline-block">入力不要で確認可能</span>
-                    </div>
-                    {/* Adjusted text size for mobile optimization */}
-                    <div className="text-2xl md:text-3xl font-black text-white font-mono tracking-tight leading-none">
-                      {formatThresholdTime(thresholdMinutes)}
-                    </div>
-                  </div>
+                  
+                  {mode === 'research' ? (
+                     <div className="text-left flex flex-col gap-3">
+                        <div>
+                           <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider bg-purple-500/10 px-1.5 py-0.5 rounded">研究の日 (45倍)</span>
+                              <span className="text-[10px] text-slate-400">の境目</span>
+                           </div>
+                           <div className="text-2xl font-black text-white font-mono tracking-tight leading-none">
+                              {formatThresholdTime(thresholdResearch)}
+                           </div>
+                        </div>
+                        <div className="relative pl-3 border-l-2 border-slate-700">
+                           <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider bg-amber-500/10 px-1.5 py-0.5 rounded">総力UP (30倍)</span>
+                              <span className="text-[10px] text-slate-400">の境目</span>
+                           </div>
+                           <div className="text-xl font-bold text-slate-300 font-mono tracking-tight leading-none">
+                              {formatThresholdTime(thresholdStandard)}
+                           </div>
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="text-left">
+                        <div className="flex items-center gap-2 mb-0.5">
+                           <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">お得ライン (境目)</span>
+                           <span className="bg-slate-700 text-[10px] px-1.5 py-0.5 rounded text-slate-300 whitespace-nowrap hidden sm:inline-block">入力不要で確認可能</span>
+                        </div>
+                        <div className="text-2xl md:text-3xl font-black text-white font-mono tracking-tight leading-none">
+                           {formatThresholdTime(thresholdStandard)}
+                        </div>
+                     </div>
+                  )}
                 </div>
 
                 <div className="text-center md:text-right w-full md:w-auto bg-white/5 md:bg-transparent p-3 md:p-0 rounded-lg">
                   <div className="flex flex-col items-center md:items-end gap-0.5">
                     <p className="text-xs md:text-sm text-slate-300 leading-snug">
-                      残り時間がこれより<span className="text-amber-400 font-bold text-sm md:text-base mx-1">短ければ</span>総力UP！
+                      残り時間がこれより<span className={`${mode === 'research' ? 'text-white' : 'text-amber-400'} font-bold text-sm md:text-base mx-1`}>短ければ</span>{mode === 'research' ? '各イベント' : '総力UP'}！
                     </p>
                     <p className="text-xs md:text-sm text-slate-300 leading-snug">
                       <span className="text-blue-400 font-bold text-sm md:text-base mr-1">長ければ</span>加速消費推奨
@@ -579,6 +637,7 @@ const Calculator: React.FC = () => {
             recommendation === RecommendationType.ACCELERATE_NOW ? 'bg-gradient-to-br from-amber-500 to-orange-600' :
             recommendation === RecommendationType.WAIT_FOR_SPEEDUP ? 'bg-gradient-to-br from-blue-500 to-indigo-600' :
             recommendation === RecommendationType.WAIT_FOR_TRAINING ? 'bg-gradient-to-br from-rose-500 to-pink-600' :
+            recommendation === RecommendationType.WAIT_FOR_RESEARCH ? 'bg-gradient-to-br from-purple-500 to-fuchsia-600' :
             'bg-slate-800'
           }`}>
           <div className="h-full bg-[#0F172A] rounded-xl p-8 flex flex-col justify-center items-center text-center relative overflow-hidden">
@@ -588,6 +647,7 @@ const Calculator: React.FC = () => {
               recommendation === RecommendationType.ACCELERATE_NOW ? 'bg-amber-500' :
               recommendation === RecommendationType.WAIT_FOR_SPEEDUP ? 'bg-blue-500' :
               recommendation === RecommendationType.WAIT_FOR_TRAINING ? 'bg-rose-500' :
+              recommendation === RecommendationType.WAIT_FOR_RESEARCH ? 'bg-purple-500' :
               'bg-transparent'
             }`}></div>
 
@@ -636,6 +696,18 @@ const Calculator: React.FC = () => {
                     <p className="text-rose-200/80 font-medium text-lg mb-8">「訓練の日」が最もポイントを稼げます</p>
                   </div>
                 )}
+
+                {recommendation === RecommendationType.WAIT_FOR_RESEARCH && (
+                  <div className="animate-in fade-in zoom-in duration-500">
+                    <div className="w-24 h-24 mx-auto bg-purple-500/20 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-purple-500/20 ring-1 ring-purple-500/50">
+                      <Microscope className="w-12 h-12 text-purple-400 drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+                    </div>
+                    <div className="text-5xl md:text-5xl font-black text-white mb-3 tracking-tight drop-shadow-lg leading-tight">
+                      <span className="text-transparent bg-clip-text bg-gradient-to-b from-purple-300 to-purple-500">研究の日</span>まで<br/>待機
+                    </div>
+                    <p className="text-purple-200/80 font-medium text-lg mb-8">1戦力45ptの日が最も高効率です</p>
+                  </div>
+                )}
                 
                 {recommendation === RecommendationType.EQUAL && (
                   <div className="animate-in fade-in zoom-in duration-500">
@@ -674,7 +746,7 @@ const Calculator: React.FC = () => {
                 
                 {/* Event 1 Efficiency */}
                 <div className="flex justify-between items-center mb-2">
-                   <span className="text-slate-400 text-xs">総力UP ({modeInfo[mode].label})</span>
+                   <span className="text-slate-400 text-xs">総力UP (戦力30/20pt)</span>
                    <span className={`text-base font-bold font-mono ${efficiencyEvent1 > 300 ? 'text-amber-400' : 'text-slate-500'}`}>
                       {Math.round(efficiencyEvent1).toLocaleString()} <span className="text-[10px]">pt/分</span>
                    </span>
@@ -686,6 +758,16 @@ const Calculator: React.FC = () => {
                      <span className="text-slate-400 text-xs">兵士訓練の日</span>
                      <span className={`text-base font-bold font-mono ${efficiencyEvent3 > 300 ? 'text-rose-400' : 'text-slate-500'}`}>
                         {Math.round(efficiencyEvent3).toLocaleString()} <span className="text-[10px]">pt/分</span>
+                     </span>
+                  </div>
+                )}
+
+                {/* Event 4 Efficiency (Research Only) */}
+                {mode === 'research' && (
+                  <div className="flex justify-between items-center mb-2">
+                     <span className="text-slate-400 text-xs">研究の日 (戦力45pt)</span>
+                     <span className={`text-base font-bold font-mono ${efficiencyEvent4 > 300 ? 'text-purple-400' : 'text-slate-500'}`}>
+                        {Math.round(efficiencyEvent4).toLocaleString()} <span className="text-[10px]">pt/分</span>
                      </span>
                   </div>
                 )}
@@ -779,7 +861,7 @@ const Calculator: React.FC = () => {
           <h4 className="font-bold text-blue-300">計算ロジックと戦略メモ</h4>
           <p className="mb-2">
             境目となる時間（分） = 上昇する総力 × (イベント倍率 ÷ 300) <br/>
-            建造・研究は倍率30（÷10）、兵士は倍率20（÷15）で計算されます。
+            通常建造・研究は倍率30、兵士は倍率20、<strong>研究の日</strong>は倍率45で計算されます。
           </p>
           {mode === 'troop' && (
             <p className="text-rose-200/90 font-medium bg-rose-900/30 p-2 rounded border border-rose-500/30">
@@ -787,6 +869,13 @@ const Calculator: React.FC = () => {
               兵士イベントは「訓練の日」と「総力UPの日」の2種類でポイント獲得機会があります。<br/>
               上記グラフでポイントが高い日を狙って加速を使いましょう。<br/>
               ※一般的に低レベル兵士は「訓練の日」の効率が良く、高レベル兵士は「総力UPの日」が競合する場合があります。
+            </p>
+          )}
+          {mode === 'research' && (
+            <p className="text-purple-200/90 font-medium bg-purple-900/30 p-2 rounded border border-purple-500/30">
+              ⚡ <strong>研究イベントのヒント:</strong><br/>
+              研究は「総力UP（30倍）」よりも「研究の日（45倍）」の方が圧倒的にポイント効率が良いです。<br/>
+              急ぎでない場合は、研究の日に加速を使用することを強く推奨します。
             </p>
           )}
         </div>

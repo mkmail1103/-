@@ -60,7 +60,7 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.8</div>
+            <div className="text-xs text-slate-500 font-medium hidden sm:block">v0.24.9</div>
           </div>
         </div>
       </header>
@@ -134,7 +134,7 @@ const App: React.FC = () => {
                 加速アイテム最適化
               </h2>
               <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
-                「総力上昇」と「加速消費」。どちらのイベントで加速を使うべきか瞬時に判定します。
+                「総力上昇」と「加速消費」<br />どのイベントで加速を使うべきか瞬時に判定します。
               </p>
             </div>
             <Calculator />
@@ -152,7 +152,7 @@ const App: React.FC = () => {
                 資源バランス診断
               </h2>
               <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
-                手持ちの資源比率（20:20:4:1）をチェックし、不足している資源を特定します。
+                手持ちの資源比率（20:20:4:1）をチェックし、<br />不足している資源を特定します。
               </p>
             </div>
             <ResourceManager />
@@ -333,7 +333,7 @@ const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-white/5 bg-[#0B1120]/50 backdrop-blur-sm py-8 mt-12">
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.8</p>
+          <p className="text-slate-600 text-sm">© 2026 Kingshot Optimizer. Unofficial Tool. v0.24.9</p>
         </div>
       </footer>
     </div>
