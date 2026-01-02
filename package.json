@@ -1,7 +1,8 @@
+
 {
   "name": "kingshot-optimizer",
   "private": true,
-  "version": "0.24.10",
+  "version": "0.24.11",
   "type": "module",
   "scripts": {
     "dev": "vite",
